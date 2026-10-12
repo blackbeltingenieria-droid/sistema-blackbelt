@@ -1,0 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background-color: #F6F3EC;
+    color: #15130F;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: #F6F3EC; }
+  ::-webkit-scrollbar-thumb { background: #E4DFD3; border-radius: 2px; }
+}
+
+@layer components {
+  .bb-display   { font-family: 'Space Grotesk', sans-serif; }
+  .bb-body      { font-family: 'IBM Plex Sans', sans-serif; }
+  .bb-mono      { font-family: 'IBM Plex Mono', monospace; }
+
+  .bb-label-xs  { @apply text-[11px] uppercase tracking-widest font-medium; }
+
+  /* Belt-stripe: the iconic belt colors used as status signal */
+  .belt-backlog     { background-color: #E4DFD3; color: #15130F; }
+  .belt-por_hacer   { background-color: #D8B13A; color: #15130F; }
+  .belt-en_curso    { background-color: #C9742E; color: #FFFFFF; }
+  .belt-en_revision { background-color: #6E8B55; color: #FFFFFF; }
+  .belt-hecho       { background-color: #15130F; color: #FFFFFF; }
+  .belt-activo      { background-color: #6E8B55; color: #FFFFFF; }
+  .belt-finalizado  { background-color: #15130F; color: #FFFFFF; }
+  .belt-cancelado   { background-color: #B0532A; color: #FFFFFF; }
+}
