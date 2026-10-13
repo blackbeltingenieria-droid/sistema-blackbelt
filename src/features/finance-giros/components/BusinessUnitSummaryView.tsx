@@ -4,6 +4,7 @@
 import { useMemo, useState } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { KpiCard } from '../../../components/ui/KpiCard';
+import { DataTable, type Column } from '../../../components/ui/DataTable';
 import { CategoryCodeChip } from './CategoryCodeChip';
 import { ScopeChip } from './ScopeChip';
 import { useTransactionRows } from '../hooks/useTransactionRows';
@@ -24,6 +25,12 @@ const fmtDate = (d: string) => {
   const [y, m, day] = d.split('-');
   return `${day}/${m}/${y}`;
 };
+
+// Monto abreviado para ejes angostos (mobile): 1250 → 1.3k, 2300000 → 2.3M
+const fmtCompact = (n: number) =>
+  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M`
+  : n >= 1_000   ? `${(n / 1_000).toFixed(1)}k`
+  : String(Math.round(n));
 
 // ─── Paleta Belt-Stripe oficial para clasificaciones (Modelo C: 17 categorías) ──
 const CATEGORY_COLORS: Record<string, { color: string; label: string }> = {
@@ -144,7 +151,7 @@ function DistributionDonutChart({ slices, total }: { slices: CategorySlice[]; to
           {/* Centro del donut */}
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
             <span className="bb-label-xs text-ink-soft text-[9px]">Total Asignado</span>
-            <span className="bb-mono text-sm font-bold text-ink leading-tight mt-0.5">
+            <span className="bb-mono text-xs sm:text-sm font-bold text-ink leading-tight mt-0.5 px-5">
               {fmt(total)}
             </span>
           </div>
@@ -156,15 +163,15 @@ function DistributionDonutChart({ slices, total }: { slices: CategorySlice[]; to
         {slices.map((slice) => {
           const color = CATEGORY_COLORS[slice.code]?.color ?? '#15130F';
           return (
-            <div key={slice.code} className="flex items-center justify-between text-xs">
+            <div key={slice.code} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-3 text-xs">
               <div className="flex items-center gap-2 min-w-0">
                 <span
                   className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
                   style={{ backgroundColor: color }}
                 />
-                <span className="bb-body text-ink truncate font-medium">{slice.name}</span>
+                <span className="bb-body text-ink sm:truncate font-medium">{slice.name}</span>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center justify-end sm:justify-start gap-3 shrink-0 pl-[18px] sm:pl-0">
                 <span className="bb-mono text-ink-soft">{slice.pct.toFixed(1)}%</span>
                 <span className="bb-mono font-medium text-ink w-24 text-right">
                   {fmt(slice.total)}
@@ -199,13 +206,15 @@ function EvolutionTimelineChart({ data }: { data: PeriodBar[] }) {
 
   return (
     <div className="space-y-3">
-      <div className="h-44 flex items-end gap-6 pt-6 pb-2 px-4 border-b border-line bg-paper rounded-card">
+      <div className="overflow-x-auto">
+      <div className="h-44 flex items-end gap-2 sm:gap-6 pt-6 pb-2 px-1 sm:px-4 border-b border-line bg-paper rounded-card min-w-fit">
         {data.map((bar) => {
           const barHeight = Math.max(12, (bar.total / maxVal) * chartHeight);
           return (
-            <div key={bar.key} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group">
+            <div key={bar.key} className="flex-1 min-w-[44px] flex flex-col items-center gap-1.5 h-full justify-end group">
               <span className="bb-mono text-[10px] font-semibold text-ink group-hover:text-gold transition-colors">
-                {fmt(bar.total)}
+                <span className="sm:hidden">{fmtCompact(bar.total)}</span>
+                <span className="hidden sm:inline">{fmt(bar.total)}</span>
               </span>
               <div className="w-full max-w-[56px] h-full flex items-end">
                 <div
@@ -214,12 +223,13 @@ function EvolutionTimelineChart({ data }: { data: PeriodBar[] }) {
                   title={`${bar.label}: ${fmt(bar.total)}`}
                 />
               </div>
-              <span className="bb-mono text-[11px] text-ink-soft whitespace-nowrap mt-1">
+              <span className="bb-mono text-[11px] text-ink-soft sm:whitespace-nowrap text-center leading-tight mt-1">
                 {bar.label}
               </span>
             </div>
           );
         })}
+      </div>
       </div>
       <p className="bb-body text-[11px] text-ink-soft text-right">
         * Montos prorrateados asignados al giro por período
@@ -255,6 +265,11 @@ export function BusinessUnitSummaryView({ onEditTransaction }: Props) {
   );
 
   const hasActiveFilters = Boolean(dateFrom || dateTo || catFilter !== '' || toolFilter !== '');
+
+  function selectGiro(id: number) {
+    setSelectedBuId(id);
+    if (viewMode === 'comparativa') setViewMode('dashboard');
+  }
 
   function handleClearFilters() {
     setDateFrom('');
@@ -380,6 +395,83 @@ export function BusinessUnitSummaryView({ onEditTransaction }: Props) {
 
   const loading = txLoading || sumLoading;
 
+  // Movimientos del giro: misma DataTable de siempre; en pantallas angostas cada fila es una tarjeta.
+  const movementColumns: Column<TransactionRow>[] = [
+    {
+      key: 'date',
+      header: 'Fecha',
+      mobile: 'key',
+      className: 'whitespace-nowrap',
+      render: (tx) => <span className="bb-mono text-xs text-ink-soft">{fmtDate(tx.transactionDate)}</span>,
+    },
+    {
+      key: 'description',
+      header: 'Descripción',
+      mobile: 'title',
+      render: (tx) => (
+        <div>
+          <span className="bb-body text-xs font-medium text-ink max-xl:text-sm">{tx.description}</span>
+          {tx.toolName && (
+            <span className="block bb-body text-[11px] text-ink-soft">🔧 {tx.toolName}</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'category',
+      header: 'Clasificación',
+      mobile: 'key',
+      mobileFull: true,
+      className: 'whitespace-nowrap',
+      render: (tx) => <CategoryCodeChip code={tx.costCategoryCode} name={tx.costCategoryName} />,
+    },
+    {
+      key: 'amount',
+      header: 'Monto Original',
+      mobile: 'detail',
+      className: 'text-right',
+      render: (tx) => <span className="bb-mono text-xs text-ink-soft">{fmt(tx.amount)}</span>,
+    },
+    {
+      key: 'pct',
+      header: '% Giro',
+      mobile: 'key',
+      className: 'text-right',
+      render: (tx) => (
+        <span className="bb-mono text-xs font-medium text-ink">
+          {tx.allocations.find((a) => a.businessUnitId === selectedBuId)?.pct ?? 0}%
+        </span>
+      ),
+    },
+    {
+      key: 'assigned',
+      header: 'Monto Asignado',
+      mobile: 'highlight',
+      className: 'text-right whitespace-nowrap',
+      render: (tx) => (
+        <span className="bb-mono text-xs max-xl:text-sm font-bold text-rust">
+          {fmt(tx.allocations.find((a) => a.businessUnitId === selectedBuId)?.allocatedAmount ?? 0)}
+        </span>
+      ),
+    },
+    ...(onEditTransaction
+      ? [{
+          key: 'action',
+          header: 'Acción',
+          mobile: 'action' as const,
+          className: 'text-right whitespace-nowrap',
+          render: (tx: TransactionRow) => (
+            <button
+              onClick={() => onEditTransaction(tx)}
+              className="px-2 py-0.5 border border-line rounded bg-paper text-ink hover:border-gold text-xs max-xl:text-sm transition-colors"
+            >
+              ✏️ Editar
+            </button>
+          ),
+        }]
+      : []),
+  ];
+
   return (
     <div className="space-y-6">
       {/* ── Selector de Modo y Giros ── */}
@@ -394,10 +486,10 @@ export function BusinessUnitSummaryView({ onEditTransaction }: Props) {
         </div>
 
         {/* Alternador entre Dashboard y Comparativa */}
-        <div className="flex items-center gap-1 bg-paper border border-line rounded-card p-1">
+        <div className="flex items-center gap-1 bg-paper border border-line rounded-card p-1 w-full sm:w-auto">
           <button
             onClick={() => setViewMode('dashboard')}
-            className={`px-3 py-1.5 rounded text-xs bb-body font-medium transition-colors ${
+            className={`flex-1 sm:flex-none px-3 py-1.5 min-h-[40px] sm:min-h-0 rounded text-xs bb-body font-medium transition-colors ${
               viewMode === 'dashboard'
                 ? 'bg-ink text-paper font-semibold'
                 : 'text-ink-soft hover:text-ink'
@@ -407,7 +499,7 @@ export function BusinessUnitSummaryView({ onEditTransaction }: Props) {
           </button>
           <button
             onClick={() => setViewMode('comparativa')}
-            className={`px-3 py-1.5 rounded text-xs bb-body font-medium transition-colors ${
+            className={`flex-1 sm:flex-none px-3 py-1.5 min-h-[40px] sm:min-h-0 rounded text-xs bb-body font-medium transition-colors ${
               viewMode === 'comparativa'
                 ? 'bg-ink text-paper font-semibold'
                 : 'text-ink-soft hover:text-ink'
@@ -419,16 +511,28 @@ export function BusinessUnitSummaryView({ onEditTransaction }: Props) {
       </div>
 
       {/* ── Selector de Giros (Pills horizontales) ── */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      {/* Mobile: selector simple (nativo). md+: botones (pills) en varias filas, sin scroll. */}
+      <div className="md:hidden">
+        <label htmlFor="giro-select" className="bb-label">Giro de negocio</label>
+        <select
+          id="giro-select"
+          value={selectedBuId}
+          onChange={(e) => selectGiro(Number(e.target.value))}
+          className="bb-input !bg-paper"
+        >
+          {SEED_BUSINESS_UNITS.map((bu) => (
+            <option key={bu.id} value={bu.id}>{bu.code} · {bu.name}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="hidden md:flex flex-wrap gap-2 pb-1">
         {SEED_BUSINESS_UNITS.map((bu) => {
           const isSelected = bu.id === selectedBuId;
           return (
             <button
               key={bu.id}
-              onClick={() => {
-                setSelectedBuId(bu.id);
-                if (viewMode === 'comparativa') setViewMode('dashboard');
-              }}
+              onClick={() => selectGiro(bu.id)}
               className={`px-3.5 py-2 rounded-card text-xs bb-body font-medium whitespace-nowrap transition-all border flex items-center gap-2 ${
                 isSelected
                   ? 'bg-ink text-paper border-ink shadow-sm'
@@ -469,7 +573,7 @@ export function BusinessUnitSummaryView({ onEditTransaction }: Props) {
                     {activeGiro.name}
                   </h3>
                 </div>
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
                   <VariationBadge pct={activeSummary?.variationPct ?? null} />
                   <span className="bb-mono text-xs text-ink-soft">
                     · {giroTransactions.length} movimiento{giroTransactions.length !== 1 ? 's' : ''} asignado{giroTransactions.length !== 1 ? 's' : ''}
@@ -477,7 +581,7 @@ export function BusinessUnitSummaryView({ onEditTransaction }: Props) {
                 </div>
               </div>
 
-              <div className="text-right">
+              <div className="md:text-right">
                 <p className="bb-label-xs text-ink-soft">Gasto Asignado al Giro</p>
                 <p className={`bb-mono text-2xl font-bold ${giroGrandTotal > 0 ? 'text-rust' : 'text-ink-soft'}`}>
                   {fmt(giroGrandTotal)}
@@ -487,24 +591,24 @@ export function BusinessUnitSummaryView({ onEditTransaction }: Props) {
 
             {/* ── Barra de Filtros Internos del Giro ── */}
             <div className="mt-5 pt-4 border-t border-line">
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-3">
                 {/* Rango de fechas */}
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-1.5">
                   <span className="bb-label-xs text-ink-soft">Desde:</span>
                   <input
                     type="date"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
-                    className="bb-body text-xs text-ink bg-canvas border border-line rounded px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-gold"
+                    className="bb-body text-base sm:text-xs text-ink bg-canvas border border-line rounded px-2.5 py-1.5 min-h-[44px] sm:min-h-0 w-full sm:w-auto focus:outline-none focus:ring-1 focus:ring-gold"
                   />
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-1.5">
                   <span className="bb-label-xs text-ink-soft">Hasta:</span>
                   <input
                     type="date"
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
-                    className="bb-body text-xs text-ink bg-canvas border border-line rounded px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-gold"
+                    className="bb-body text-base sm:text-xs text-ink bg-canvas border border-line rounded px-2.5 py-1.5 min-h-[44px] sm:min-h-0 w-full sm:w-auto focus:outline-none focus:ring-1 focus:ring-gold"
                   />
                 </div>
 
@@ -512,7 +616,7 @@ export function BusinessUnitSummaryView({ onEditTransaction }: Props) {
                 <select
                   value={catFilter}
                   onChange={(e) => setCatFilter(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="bb-body text-xs text-ink bg-canvas border border-line rounded px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-gold"
+                  className="col-span-2 sm:col-span-1 bb-body text-base sm:text-xs text-ink bg-canvas border border-line rounded px-2.5 py-1.5 min-h-[44px] sm:min-h-0 w-full sm:w-auto focus:outline-none focus:ring-1 focus:ring-gold"
                 >
                   <option value="">Todas las clasificaciones</option>
                   {SEED_COST_CATEGORIES.map((c) => (
@@ -524,7 +628,7 @@ export function BusinessUnitSummaryView({ onEditTransaction }: Props) {
                 <select
                   value={toolFilter}
                   onChange={(e) => setToolFilter(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="bb-body text-xs text-ink bg-canvas border border-line rounded px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-gold"
+                  className="col-span-2 sm:col-span-1 bb-body text-base sm:text-xs text-ink bg-canvas border border-line rounded px-2.5 py-1.5 min-h-[44px] sm:min-h-0 w-full sm:w-auto focus:outline-none focus:ring-1 focus:ring-gold"
                 >
                   <option value="">Todas las herramientas</option>
                   {tools.map((t) => (
@@ -535,7 +639,7 @@ export function BusinessUnitSummaryView({ onEditTransaction }: Props) {
                 {hasActiveFilters && (
                   <button
                     onClick={handleClearFilters}
-                    className="bb-body text-xs text-rust hover:underline ml-auto font-medium"
+                    className="col-span-2 sm:col-span-1 min-h-[44px] sm:min-h-0 text-left sm:text-center bb-body text-sm sm:text-xs text-rust hover:underline sm:ml-auto font-medium"
                   >
                     × Limpiar filtros
                   </button>
@@ -644,8 +748,8 @@ export function BusinessUnitSummaryView({ onEditTransaction }: Props) {
           )}
 
           {/* ── Detalle de Movimientos del Giro ── */}
-          <Card padding="p-0">
-            <div className="p-4 border-b border-line flex items-center justify-between">
+          <Card padding="p-0" plainBelow="xl">
+            <div className="p-4 max-xl:px-0 border-b border-line max-xl:border-0 flex items-start xl:items-center justify-between gap-3">
               <div>
                 <h4 className="bb-display font-semibold text-ink text-base">
                   Movimientos que aportan costo a este giro
@@ -659,74 +763,13 @@ export function BusinessUnitSummaryView({ onEditTransaction }: Props) {
               </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-line bg-canvas/30 text-ink-soft bb-label-xs">
-                    <th className="py-2.5 px-4">Fecha</th>
-                    <th className="py-2.5 px-4">Descripción</th>
-                    <th className="py-2.5 px-4">Clasificación</th>
-                    <th className="py-2.5 px-4 text-right">Monto Original</th>
-                    <th className="py-2.5 px-4 text-right">% Giro</th>
-                    <th className="py-2.5 px-4 text-right">Monto Asignado</th>
-                    {onEditTransaction && <th className="py-2.5 px-4 text-right">Acción</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line text-xs">
-                  {giroTransactions.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-8 text-center text-ink-soft bb-body">
-                        No hay movimientos para este giro con los filtros seleccionados
-                      </td>
-                    </tr>
-                  ) : (
-                    giroTransactions.map((tx) => {
-                      const alloc = tx.allocations.find((a) => a.businessUnitId === selectedBuId);
-                      const assigned = alloc?.allocatedAmount ?? 0;
-                      const pct = alloc?.pct ?? 0;
-
-                      return (
-                        <tr key={tx.id} className="hover:bg-canvas/30 transition-colors">
-                          <td className="py-2.5 px-4 bb-mono text-ink-soft whitespace-nowrap">
-                            {fmtDate(tx.transactionDate)}
-                          </td>
-                          <td className="py-2.5 px-4">
-                            <span className="bb-body font-medium text-ink">{tx.description}</span>
-                            {tx.toolName && (
-                              <span className="block bb-body text-[11px] text-ink-soft">
-                                🔧 {tx.toolName}
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-2.5 px-4 whitespace-nowrap">
-                            <CategoryCodeChip code={tx.costCategoryCode} name={tx.costCategoryName} />
-                          </td>
-                          <td className="py-2.5 px-4 bb-mono text-right text-ink-soft">
-                            {fmt(tx.amount)}
-                          </td>
-                          <td className="py-2.5 px-4 bb-mono text-right font-medium text-ink">
-                            {pct}%
-                          </td>
-                          <td className="py-2.5 px-4 bb-mono text-right font-bold text-rust whitespace-nowrap">
-                            {fmt(assigned)}
-                          </td>
-                          {onEditTransaction && (
-                            <td className="py-2.5 px-4 text-right whitespace-nowrap">
-                              <button
-                                onClick={() => onEditTransaction(tx)}
-                                className="px-2 py-0.5 border border-line rounded bg-paper text-ink hover:border-gold text-xs transition-colors"
-                              >
-                                ✏️ Editar
-                              </button>
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <DataTable<TransactionRow>
+              columns={movementColumns}
+              rows={giroTransactions}
+              getRowKey={(tx) => tx.id}
+              cardsBelow="xl"
+              emptyMessage="No hay movimientos para este giro con los filtros seleccionados"
+            />
           </Card>
         </div>
       )}

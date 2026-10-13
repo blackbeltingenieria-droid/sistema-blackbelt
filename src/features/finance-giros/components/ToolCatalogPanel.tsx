@@ -26,21 +26,24 @@ const TOOL_COLS: Column<Tool>[] = [
   {
     key: 'name',
     header: 'Herramienta',
+    mobile: 'title',
     render: (t) => (
       <div>
         <p className="bb-body text-sm font-medium text-ink">{t.name}</p>
-        {t.notes && <p className="bb-body text-xs text-ink-soft mt-0.5 truncate max-w-[220px]">{t.notes}</p>}
+        {t.notes && <p className="bb-body text-xs text-ink-soft mt-0.5 truncate max-w-[220px] max-md:max-w-none max-md:whitespace-normal">{t.notes}</p>}
       </div>
     ),
   },
   {
     key: 'scope',
     header: 'Alcance',
+    mobile: 'key',
     render: (t) => <ScopeChip scope={t.scope} />,
   },
   {
     key: 'cost',
     header: 'Costo ref./mes',
+    mobile: 'highlight',
     className: 'text-right',
     render: (t) => (
       <span className="bb-mono text-sm text-ink">
@@ -72,11 +75,11 @@ export function ToolCatalogPanel({ onNewTool }: Props) {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h2 className="bb-display font-semibold text-ink text-lg">Catálogo de herramientas</h2>
         <button
           onClick={onNewTool}
-          className="flex items-center gap-1.5 bg-gold text-ink px-3 py-2 rounded-card bb-body text-sm font-semibold hover:bg-gold/90 transition-colors"
+          className="flex items-center justify-center gap-1.5 bg-gold text-ink px-3 py-2 min-h-[44px] sm:min-h-0 rounded-card bb-body text-sm font-semibold hover:bg-gold/90 transition-colors"
         >
           <span>+</span> Nueva herramienta
         </button>
@@ -91,7 +94,7 @@ export function ToolCatalogPanel({ onNewTool }: Props) {
       {loading ? (
         <p className="bb-body text-ink-soft text-sm py-8 text-center">Cargando herramientas…</p>
       ) : (
-        <Card padding="p-0">
+        <Card padding="p-0" plainBelow="md">
           <DataTable<Tool>
             columns={TOOL_COLS}
             rows={tools}
@@ -111,7 +114,8 @@ export function ToolCatalogPanel({ onNewTool }: Props) {
             </h3>
             <button
               onClick={() => { setSelected(null); setHistory([]); }}
-              className="text-ink-soft hover:text-ink text-lg leading-none"
+              aria-label="Cerrar historial"
+              className="w-11 h-11 sm:w-auto sm:h-auto -mr-3 sm:mr-0 flex items-center justify-center text-ink-soft hover:text-ink text-2xl sm:text-lg leading-none"
             >×</button>
           </div>
 
@@ -135,8 +139,8 @@ export function ToolCatalogPanel({ onNewTool }: Props) {
               <ul className="space-y-2">
                 {history.map((h) => (
                   <li key={h.transactionId} className="border border-line rounded-card p-3">
-                    <div className="flex justify-between items-start mb-1">
-                      <div>
+                    <div className="flex justify-between items-start gap-3 mb-1">
+                      <div className="min-w-0">
                         <p className="bb-body text-sm font-medium text-ink">{h.description}</p>
                         <p className="bb-mono text-xs text-ink-soft">{fmtDate(h.transactionDate)}</p>
                       </div>

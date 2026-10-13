@@ -34,7 +34,7 @@ export function ProjectDetailPanel({ projectId, onClose }: ProjectDetailPanelPro
 
   if (projectId === null) {
     return (
-      <aside className="w-[360px] flex-shrink-0 flex items-center justify-center bg-canvas border-l border-line h-full min-h-[400px]">
+      <aside className="hidden lg:flex w-[360px] flex-shrink-0 items-center justify-center bg-canvas border-l border-line h-full min-h-[400px]">
         <p className="bb-body text-ink-soft text-sm text-center px-8">
           Selecciona un proyecto para ver el detalle
         </p>
@@ -43,13 +43,30 @@ export function ProjectDetailPanel({ projectId, onClose }: ProjectDetailPanelPro
   }
 
   return (
-    <aside className="w-[360px] flex-shrink-0 bg-canvas border-l border-line overflow-y-auto">
+    // Mobile/tablet (<1024px): vista a pantalla completa que se desliza sobre la lista.
+    // Desktop (lg): panel lateral de 360px, como siempre.
+    <aside
+      className={[
+        'fixed inset-0 z-40 overflow-y-auto overscroll-contain bg-canvas animate-bb-slide-in-right',
+        'pb-[env(safe-area-inset-bottom)]',
+        'lg:static lg:inset-auto lg:z-auto lg:animate-none lg:w-[360px] lg:flex-shrink-0 lg:border-l lg:border-line lg:pb-0',
+      ].join(' ')}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-paper">
-        <p className="bb-label-xs text-ink-soft">Detalle del proyecto</p>
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-2 px-2 lg:px-5 py-1 lg:py-4 border-b border-line bg-paper">
         <button
           onClick={onClose}
-          className="text-ink-soft hover:text-ink text-lg leading-none transition-colors"
+          className="lg:hidden min-h-[44px] px-3 flex items-center gap-1.5 bb-body text-sm font-medium text-ink"
+          aria-label="Volver a la lista"
+        >
+          <span aria-hidden="true" className="text-lg leading-none">←</span>
+          Proyectos
+        </button>
+        <p className="bb-label-xs text-ink-soft hidden lg:block">Detalle del proyecto</p>
+        <p className="bb-label-xs text-ink-soft lg:hidden pr-3">Detalle</p>
+        <button
+          onClick={onClose}
+          className="hidden lg:block text-ink-soft hover:text-ink text-lg leading-none transition-colors"
           aria-label="Cerrar detalle"
         >
           ×
@@ -69,7 +86,7 @@ export function ProjectDetailPanel({ projectId, onClose }: ProjectDetailPanelPro
       )}
 
       {!loading && !error && detail && (
-        <div className="p-5 space-y-4">
+        <div className="p-4 sm:p-5 space-y-4 pb-8">
           {/* Project name + code + status */}
           <div>
             <div className="flex items-start justify-between gap-2 mb-1">

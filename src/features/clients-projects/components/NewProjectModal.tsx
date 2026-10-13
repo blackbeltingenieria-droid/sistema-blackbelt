@@ -3,7 +3,7 @@
 // Talks to createProject() in the service layer, never to Supabase directly.
 
 import { type FormEvent, useEffect, useState } from 'react';
-import { Card } from '../../../components/ui/Card';
+import { ModalShell } from '../../../components/ui/ModalShell';
 import { createProject, getBusinessUnits, getClients } from '../services/project-service';
 import type { BusinessUnit, Client, CreateProjectPayload } from '../types';
 import { PROJECT_STATUS } from '../../../types/database';
@@ -113,28 +113,36 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
     }
   }
 
-  const inputCls =
-    'w-full bb-body text-sm text-ink bg-canvas border border-line rounded-card px-3 py-2 ' +
-    'focus:outline-none focus:ring-1 focus:ring-gold placeholder:text-ink-soft';
-  const labelCls = 'block bb-label-xs text-ink-soft mb-1';
+  const inputCls = 'bb-input';
+  const labelCls = 'bb-label';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4">
-      <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto" padding="p-0">
-        {/* Modal header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-line">
-          <h2 className="bb-display font-semibold text-ink text-base">Nuevo proyecto</h2>
+    <ModalShell
+      title="Nuevo proyecto"
+      onClose={onClose}
+      maxWidth="max-w-lg"
+      footer={
+        <>
           <button
+            type="button"
             onClick={onClose}
-            className="text-ink-soft hover:text-ink text-xl leading-none transition-colors"
-            aria-label="Cerrar modal"
+            disabled={submitting}
+            className="flex-1 min-h-[44px] sm:min-h-0 py-2.5 border border-line rounded-card bb-body text-sm text-ink-soft hover:text-ink hover:bg-canvas transition-colors"
           >
-            ×
+            Cancelar
           </button>
-        </div>
-
-        {/* Modal body */}
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+          <button
+            type="submit"
+            form="new-project-form"
+            disabled={submitting || success}
+            className="flex-1 min-h-[44px] sm:min-h-0 py-2.5 bg-gold text-ink rounded-card bb-body text-sm font-semibold hover:bg-gold/90 disabled:opacity-50 transition-colors shadow-sm"
+          >
+            {submitting ? 'Guardando…' : 'Crear proyecto'}
+          </button>
+        </>
+      }
+    >
+        <form id="new-project-form" onSubmit={handleSubmit} className="space-y-4">
           {/* Client selector / toggle */}
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -163,7 +171,7 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
                     required={isNewClient}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-2">
                   <div>
                     <label className="bb-label-xs text-ink-soft text-[10px] mb-0.5 block">
                       Tipo de cliente
@@ -191,7 +199,7 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-2">
                   <div>
                     <label className="bb-label-xs text-ink-soft text-[10px] mb-0.5 block">
                       WhatsApp / Teléfono
@@ -200,6 +208,7 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
                       name="newClientPhone"
                       value={form.newClientPhone}
                       onChange={handleChange}
+                      inputMode="tel"
                       placeholder="Ej. 99999999"
                       className={inputCls}
                     />
@@ -212,6 +221,8 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
                       name="newClientEmail"
                       value={form.newClientEmail}
                       onChange={handleChange}
+                      inputMode="email"
+                      autoCapitalize="none"
                       placeholder="cliente@ejemplo.com"
                       className={inputCls}
                     />
@@ -256,7 +267,7 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
           </div>
 
           {/* Code + Project name */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-2">
             <div>
               <label className={labelCls}>Código (opcional)</label>
               <input
@@ -267,7 +278,7 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
                 className={inputCls}
               />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className={labelCls}>Nombre del proyecto</label>
               <input
                 name="name"
@@ -281,7 +292,7 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
           </div>
 
           {/* Service & Responsable */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-3">
             <div>
               <label className={labelCls}>Servicio</label>
               <input
@@ -309,6 +320,7 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
             <label className={labelCls}>Monto contratado (S/.)</label>
             <input
               type="number"
+              inputMode="decimal"
               name="contractedAmount"
               value={form.contractedAmount}
               onChange={handleChange}
@@ -321,7 +333,7 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
           </div>
 
           {/* Dates */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-3">
             <div>
               <label className={labelCls}>Fecha de inicio</label>
               <input
@@ -390,26 +402,7 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
             </div>
           )}
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={submitting}
-              className="flex-1 py-2.5 border border-line rounded-card bb-body text-sm text-ink-soft hover:text-ink hover:bg-canvas transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={submitting || success}
-              className="flex-1 py-2.5 bg-gold text-ink rounded-card bb-body text-sm font-semibold hover:bg-gold/90 disabled:opacity-50 transition-colors shadow-sm"
-            >
-              {submitting ? 'Guardando…' : 'Crear proyecto'}
-            </button>
-          </div>
         </form>
-      </Card>
-    </div>
+    </ModalShell>
   );
 }

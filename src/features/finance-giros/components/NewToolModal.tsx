@@ -2,7 +2,7 @@
 // Modal para crear una herramienta nueva con su scope y giros asociados.
 
 import { type FormEvent, useEffect, useState } from 'react';
-import { Card } from '../../../components/ui/Card';
+import { ModalShell } from '../../../components/ui/ModalShell';
 import { createTool } from '../services/finance-service';
 import { TOOL_SCOPE } from '../../../types/database';
 import type { CreateToolPayload, ToolScope } from '../types';
@@ -83,20 +83,28 @@ export function NewToolModal({ onClose, onCreated }: Props) {
     }
   }
 
-  const inputCls =
-    'w-full bb-body text-sm text-ink bg-canvas border border-line rounded-card px-3 py-2 ' +
-    'focus:outline-none focus:ring-1 focus:ring-gold placeholder:text-ink-soft';
-  const labelCls = 'block bb-label-xs text-ink-soft mb-1';
+  const inputCls = 'bb-input';
+  const labelCls = 'bb-label';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4">
-      <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto" padding="p-0">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-line">
-          <h2 className="bb-display font-semibold text-ink text-base">Nueva herramienta</h2>
-          <button onClick={onClose} className="text-ink-soft hover:text-ink text-xl leading-none">×</button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+    <ModalShell
+      title="Nueva herramienta"
+      onClose={onClose}
+      maxWidth="max-w-lg"
+      footer={
+        <>
+          <button type="button" onClick={onClose}
+            className="flex-1 min-h-[44px] sm:min-h-0 py-2.5 border border-line rounded-card bb-body text-sm text-ink-soft hover:text-ink transition-colors">
+            Cancelar
+          </button>
+          <button type="submit" form="tool-form" disabled={submitting}
+            className="flex-1 min-h-[44px] sm:min-h-0 py-2.5 bg-gold text-ink rounded-card bb-body text-sm font-semibold hover:bg-gold/90 disabled:opacity-50 transition-colors">
+            {submitting ? 'Guardando…' : 'Crear herramienta'}
+          </button>
+        </>
+      }
+    >
+        <form id="tool-form" onSubmit={handleSubmit} className="space-y-4">
           {/* Nombre */}
           <div>
             <label className={labelCls}>Nombre</label>
@@ -115,7 +123,7 @@ export function NewToolModal({ onClose, onCreated }: Props) {
                 <button
                   key={s} type="button"
                   onClick={() => setScope(s)}
-                  className={`py-2 text-xs rounded-card border transition-colors ${
+                  className={`py-2 min-h-[44px] sm:min-h-0 text-xs rounded-card border transition-colors ${
                     scope === s
                       ? 'bg-ink text-paper border-ink font-semibold'
                       : 'bg-paper text-ink-soft border-line hover:border-ink'
@@ -160,33 +168,33 @@ export function NewToolModal({ onClose, onCreated }: Props) {
               </label>
               <div className="space-y-2">
                 {sharedUnits.map((u, idx) => (
-                  <div key={idx} className="flex gap-2 items-center">
+                  <div key={idx} className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
                     <select
                       value={u.businessUnitId}
                       onChange={(e) => updateSharedUnit(idx, 'businessUnitId', Number(e.target.value))}
-                      className={`${inputCls} flex-1`}
+                      className={`${inputCls} basis-full sm:basis-0 sm:flex-1`}
                     >
                       {SEED_BUSINESS_UNITS.map((b) => (
                         <option key={b.id} value={b.id}>{b.name}</option>
                       ))}
                     </select>
                     <input
-                      type="number" min={0} max={100} step={1}
+                      type="number" inputMode="decimal" min={0} max={100} step={1}
                       value={u.pct}
                       onChange={(e) => updateSharedUnit(idx, 'pct', Number(e.target.value))}
-                      className={`${inputCls} w-20 text-right`}
+                      className={`${inputCls} !w-24 sm:!w-20 text-right`}
                     />
                     <span className="bb-body text-ink-soft text-sm">%</span>
                     {sharedUnits.length > 2 && (
-                      <button type="button" onClick={() => removeSharedUnit(idx)}
-                        className="text-ink-soft hover:text-rust text-lg leading-none">×</button>
+                      <button type="button" onClick={() => removeSharedUnit(idx)} aria-label="Quitar giro"
+                        className="ml-auto sm:ml-0 w-11 h-11 sm:w-auto sm:h-auto flex items-center justify-center text-ink-soft hover:text-rust text-2xl sm:text-lg leading-none">×</button>
                     )}
                   </div>
                 ))}
               </div>
               {sharedUnits.length < 5 && (
                 <button type="button" onClick={addSharedUnit}
-                  className="mt-2 bb-body text-xs text-gold hover:text-gold/80">
+                  className="mt-2 min-h-[44px] sm:min-h-0 bb-body text-sm sm:text-xs text-gold hover:text-gold/80">
                   + Agregar giro
                 </button>
               )}
@@ -197,7 +205,7 @@ export function NewToolModal({ onClose, onCreated }: Props) {
           <div>
             <label className={labelCls}>Costo mensual referencial (S/.) — opcional</label>
             <input
-              type="number" min={0} step={0.01}
+              type="number" inputMode="decimal" min={0} step={0.01}
               value={monthlyCost} onChange={(e) => setMonthlyCost(e.target.value)}
               placeholder="0.00" className={inputCls}
             />
@@ -219,18 +227,7 @@ export function NewToolModal({ onClose, onCreated }: Props) {
             </div>
           )}
 
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 border border-line rounded-card bb-body text-sm text-ink-soft hover:text-ink transition-colors">
-              Cancelar
-            </button>
-            <button type="submit" disabled={submitting}
-              className="flex-1 py-2.5 bg-gold text-ink rounded-card bb-body text-sm font-semibold hover:bg-gold/90 disabled:opacity-50 transition-colors">
-              {submitting ? 'Guardando…' : 'Crear herramienta'}
-            </button>
-          </div>
         </form>
-      </Card>
-    </div>
+    </ModalShell>
   );
 }

@@ -27,7 +27,7 @@ function HorizontalBar({ value, max, color }: { value: number; max: number; colo
           style={{ width: `${pct}%`, backgroundColor: color || '#15130F' }}
         />
       </div>
-      <span className="bb-mono text-xs text-ink w-24 text-right shrink-0">{fmt(value)}</span>
+      <span className="bb-mono text-xs text-ink w-24 sm:w-28 text-right shrink-0">{fmt(value)}</span>
     </div>
   );
 }
@@ -37,6 +37,7 @@ const TOOL_COLS: Column<ToolSpendRank>[] = [
   {
     key: 'rank',
     header: '#',
+    mobile: 'hidden', // en tarjeta el puesto se muestra junto al nombre (ver columna "name")
     render: (_r, idx) => (
       <span className="bb-mono text-xs text-ink-soft font-bold">{(idx ?? 0) + 1}</span>
     ),
@@ -45,9 +46,13 @@ const TOOL_COLS: Column<ToolSpendRank>[] = [
   {
     key: 'name',
     header: 'Herramienta',
-    render: (r) => (
+    mobile: 'title',
+    render: (r, idx) => (
       <div>
-        <p className="bb-body text-sm font-medium text-ink">{r.toolName}</p>
+        <p className="bb-body text-sm font-medium text-ink">
+          <span className="md:hidden bb-mono text-xs font-bold text-ink-soft mr-1.5">#{(idx ?? 0) + 1}</span>
+          {r.toolName}
+        </p>
         <p className="bb-body text-xs text-ink-soft mt-0.5">
           {r.impactedUnitNames.map((n) => n.split(' ')[0]).join(' · ')}
         </p>
@@ -57,12 +62,14 @@ const TOOL_COLS: Column<ToolSpendRank>[] = [
   {
     key: 'scope',
     header: 'Alcance',
+    mobile: 'key',
     render: (r) => <ScopeChip scope={r.scope} />,
     className: 'whitespace-nowrap',
   },
   {
     key: 'count',
     header: 'Movimientos',
+    mobile: 'key',
     className: 'text-right',
     render: (r) => (
       <span className="bb-mono text-sm text-ink-soft">{r.transactionCount}</span>
@@ -71,6 +78,7 @@ const TOOL_COLS: Column<ToolSpendRank>[] = [
   {
     key: 'total',
     header: 'Gasto acumulado',
+    mobile: 'highlight',
     className: 'text-right',
     render: (r) => <span className="bb-mono text-sm font-semibold text-rust">{fmt(r.totalSpend)}</span>,
   },
@@ -81,11 +89,13 @@ const LABOR_COLS: Column<LaborCostByUnit>[] = [
   {
     key: 'unit',
     header: 'Giro de negocio',
+    mobile: 'title',
     render: (r) => <span className="bb-body text-sm text-ink">{r.businessUnitName}</span>,
   },
   {
     key: 'pct',
     header: '% del total',
+    mobile: 'key',
     className: 'w-48',
     render: (r) => (
       <div className="flex items-center gap-2">
@@ -104,6 +114,7 @@ const LABOR_COLS: Column<LaborCostByUnit>[] = [
   {
     key: 'cost',
     header: 'Mano de obra prorrateada',
+    mobile: 'highlight',
     className: 'text-right',
     render: (r) => (
       <span className={`bb-mono text-sm font-medium ${r.laborCost > 0 ? 'text-rust' : 'text-ink-soft'}`}>
@@ -123,11 +134,11 @@ export function DashboardPage() {
   const maxUnitTotal     = Math.max(...comparison.map((r) => r.currentPeriodTotal), 1);
 
   return (
-    <div className="min-h-screen bg-canvas" style={{ paddingLeft: '240px' }}>
-      <div className="px-10 py-9">
+    <div className="bg-canvas">
+      <div className="px-4 py-5 sm:px-6 lg:px-10 lg:py-9">
 
         {/* Page header */}
-        <div className="mb-8">
+        <div className="mb-5 sm:mb-8">
           <h1 className="bb-display font-bold text-ink text-2xl">Dashboard general</h1>
           <p className="bb-body text-ink-soft text-sm mt-1">
             Comparativo de los 5 giros de negocio · Período completo
@@ -145,10 +156,10 @@ export function DashboardPage() {
         )}
 
         {!loading && (
-          <div className="space-y-8">
+          <div className="space-y-6 sm:space-y-8">
 
             {/* ── KPI strip ── */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               <KpiCard
                 label="Gasto total registrado"
                 value={fmt(totalSpend)}
@@ -182,8 +193,8 @@ export function DashboardPage() {
               <div className="space-y-4">
                 {comparison.map((bu, idx) => (
                   <div key={bu.businessUnitId}>
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-1">
+                      <div className="flex items-center gap-2 min-w-0">
                         {bu.businessUnitCode ? (
                           <UnitBadge
                             code={bu.businessUnitCode}
@@ -232,7 +243,7 @@ export function DashboardPage() {
               <h2 className="bb-display font-semibold text-ink text-base mb-4">
                 Ranking de herramientas por gasto acumulado
               </h2>
-              <Card padding="p-0">
+              <Card padding="p-0" plainBelow="md">
                 <DataTable<ToolSpendRank>
                   columns={TOOL_COLS}
                   rows={toolsRanking}
@@ -247,7 +258,7 @@ export function DashboardPage() {
               <h2 className="bb-display font-semibold text-ink text-base mb-4">
                 Mano de obra prorrateada por giro
               </h2>
-              <Card padding="p-0">
+              <Card padding="p-0" plainBelow="md">
                 <DataTable<LaborCostByUnit>
                   columns={LABOR_COLS}
                   rows={laborByUnit}

@@ -41,13 +41,13 @@ export function CategoryCodeChip({ code, name }: CategoryChipProps) {
   const style = CATEGORY_STYLE[code] ?? { bg: '#55504A', text: '#FFFFFF', emoji: '🏷️' };
   return (
     <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bb-body whitespace-nowrap"
+      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bb-body whitespace-nowrap max-w-full"
       style={{ backgroundColor: style.bg, color: style.text }}
       title={`${code} · ${name}`}
     >
       <span>{style.emoji}</span>
       <span className="bb-mono font-bold text-[10px] opacity-90">{code}</span>
-      <span className="truncate max-w-[150px]">{name}</span>
+      <span className="min-w-0 truncate max-w-[150px] max-md:max-w-none">{name}</span>
     </span>
   );
 }

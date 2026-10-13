@@ -3,7 +3,7 @@
 // La validación de que el reparto suma 100% se hace aquí (UI) y en el servicio.
 
 import { type FormEvent, useEffect, useState } from 'react';
-import { Card } from '../../../components/ui/Card';
+import { ModalShell } from '../../../components/ui/ModalShell';
 import {
   getCostCategories,
   getTools,
@@ -144,29 +144,36 @@ export function NewTransactionModal({ onClose, onSaved, onCreated, transactionTo
     }
   }
 
-  const inputCls =
-    'w-full bb-body text-sm text-ink bg-canvas border border-line rounded-card px-3 py-2 ' +
-    'focus:outline-none focus:ring-1 focus:ring-gold placeholder:text-ink-soft';
-  const labelCls = 'block bb-label-xs text-ink-soft mb-1';
+  const inputCls = 'bb-input';
+  const labelCls = 'bb-label';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4">
-      <Card className="w-full max-w-xl max-h-[90vh] overflow-y-auto" padding="p-0">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-line">
-          <div>
-            <h2 className="bb-display font-semibold text-ink text-base">
-              {isEditing ? 'Editar gasto' : 'Registrar gasto'}
-            </h2>
-            {isEditing && transactionToEdit?.updatedAt && (
-              <p className="bb-mono text-[10px] text-ink-soft mt-0.5">
-                Última modificación registrada
-              </p>
-            )}
-          </div>
-          <button onClick={onClose} className="text-ink-soft hover:text-ink text-xl leading-none">×</button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+    <ModalShell
+      title={isEditing ? 'Editar gasto' : 'Registrar gasto'}
+      subtitle={isEditing && transactionToEdit?.updatedAt ? 'Última modificación registrada' : undefined}
+      onClose={onClose}
+      maxWidth="max-w-xl"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 min-h-[44px] sm:min-h-0 py-2.5 border border-line rounded-card bb-body text-sm text-ink-soft hover:text-ink transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            form="transaction-form"
+            disabled={submitting || !pctOk}
+            className="flex-1 min-h-[44px] sm:min-h-0 py-2.5 bg-gold text-ink rounded-card bb-body text-sm font-semibold hover:bg-gold/90 disabled:opacity-50 transition-colors"
+          >
+            {submitting ? 'Guardando…' : isEditing ? 'Guardar cambios' : 'Registrar gasto'}
+          </button>
+        </>
+      }
+    >
+        <form id="transaction-form" onSubmit={handleSubmit} className="space-y-4">
           {/* Descripción */}
           <div>
             <label className={labelCls}>Descripción</label>
@@ -180,11 +187,12 @@ export function NewTransactionModal({ onClose, onSaved, onCreated, transactionTo
           </div>
 
           {/* Monto + Fecha */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-3">
             <div>
               <label className={labelCls}>Monto (S/.)</label>
               <input
                 type="number"
+                inputMode="decimal"
                 min={0}
                 step={0.01}
                 value={amount}
@@ -272,12 +280,12 @@ export function NewTransactionModal({ onClose, onSaved, onCreated, transactionTo
 
             <div className="space-y-2">
               {allocations.map((a, idx) => (
-                <div key={idx} className="flex gap-2 items-center">
+                <div key={idx} className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
                   <select
                     value={a.businessUnitId}
                     onChange={(e) => updateAllocBu(idx, Number(e.target.value))}
                     disabled={autoAllocated}
-                    className={`${inputCls} flex-1 ${autoAllocated ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    className={`${inputCls} basis-full sm:basis-0 sm:flex-1 ${autoAllocated ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     {SEED_BUSINESS_UNITS.map((b) => (
                       <option key={b.id} value={b.id}>{b.name}</option>
@@ -285,20 +293,22 @@ export function NewTransactionModal({ onClose, onSaved, onCreated, transactionTo
                   </select>
                   <input
                     type="number"
+                    inputMode="decimal"
                     min={0}
                     max={100}
                     step={1}
                     value={a.pct}
                     onChange={(e) => updateAlloc(idx, Number(e.target.value))}
                     disabled={autoAllocated}
-                    className={`${inputCls} w-20 text-right ${autoAllocated ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    className={`${inputCls} !w-24 sm:!w-20 text-right ${autoAllocated ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                   <span className="bb-body text-ink-soft text-sm">%</span>
                   {!autoAllocated && (
                     <button
                       type="button"
                       onClick={() => removeAlloc(idx)}
-                      className="text-ink-soft hover:text-rust text-lg leading-none flex-shrink-0"
+                      aria-label="Quitar giro"
+                      className="ml-auto sm:ml-0 w-11 h-11 sm:w-auto sm:h-auto flex items-center justify-center text-ink-soft hover:text-rust text-2xl sm:text-lg leading-none flex-shrink-0"
                     >×</button>
                   )}
                 </div>
@@ -309,7 +319,7 @@ export function NewTransactionModal({ onClose, onSaved, onCreated, transactionTo
               <button
                 type="button"
                 onClick={addManualAlloc}
-                className="mt-2 bb-body text-xs text-gold hover:text-gold/80"
+                className="mt-2 min-h-[44px] sm:min-h-0 bb-body text-sm sm:text-xs text-gold hover:text-gold/80"
               >
                 + Agregar giro
               </button>
@@ -343,24 +353,7 @@ export function NewTransactionModal({ onClose, onSaved, onCreated, transactionTo
             </div>
           )}
 
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2.5 border border-line rounded-card bb-body text-sm text-ink-soft hover:text-ink transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={submitting || !pctOk}
-              className="flex-1 py-2.5 bg-gold text-ink rounded-card bb-body text-sm font-semibold hover:bg-gold/90 disabled:opacity-50 transition-colors"
-            >
-              {submitting ? 'Guardando…' : isEditing ? 'Guardar cambios' : 'Registrar gasto'}
-            </button>
-          </div>
         </form>
-      </Card>
-    </div>
+    </ModalShell>
   );
 }
