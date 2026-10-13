@@ -1,26 +1,29 @@
 // components/ui/Sidebar.tsx
-// Fixed left navigation — 240px, ink background, logo + nav + user footer
+// Fixed left navigation — 240px, ink background, logo + nav + user footer.
+// Solo visible desde 1024px (lg); en pantallas menores la navegación es MobileNav.
 // Reused across ALL authenticated views. Do not add business-logic here.
 
 import { NavLink } from 'react-router-dom';
 
-interface NavItem {
+export interface NavItem {
   label: string;
+  shortLabel: string; // etiqueta corta para la barra inferior en mobile
   to: string;
   icon: string; // emoji or lucide-style text for now
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard',            to: '/dashboard',         icon: '📈' },
-  { label: 'Clientes y Proyectos', to: '/clients-projects',  icon: '📋' },
-  { label: 'Costos por Giro',       to: '/finance',            icon: '💸' },
-  { label: 'Kanban',               to: '/kanban',             icon: '🗂️'  },
-  { label: 'Horas-hombre',         to: '/work-hours',         icon: '⏱️'  },
+// Única fuente de navegación: la reutiliza MobileNav (barra inferior en mobile).
+export const NAV_ITEMS: NavItem[] = [
+  { label: 'Dashboard',            shortLabel: 'Inicio',    to: '/dashboard',         icon: '📈' },
+  { label: 'Clientes y Proyectos', shortLabel: 'Proyectos', to: '/clients-projects',  icon: '📋' },
+  { label: 'Costos por Giro',      shortLabel: 'Costos',    to: '/finance',           icon: '💸' },
+  { label: 'Kanban',               shortLabel: 'Kanban',    to: '/kanban',            icon: '🗂️'  },
+  { label: 'Horas-hombre',         shortLabel: 'Horas',     to: '/work-hours',        icon: '⏱️'  },
 ];
 
 export function Sidebar() {
   return (
-    <aside className="fixed inset-y-0 left-0 w-[240px] bg-ink flex flex-col z-20">
+    <aside className="hidden lg:flex fixed inset-y-0 left-0 w-[240px] bg-ink flex-col z-20">
       {/* Logo */}
       <div className="px-6 pt-8 pb-6 border-b border-white/10">
         <div className="flex items-center gap-3">

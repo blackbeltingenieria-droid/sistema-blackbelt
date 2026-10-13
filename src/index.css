@@ -24,6 +24,18 @@
 
   .bb-label-xs  { @apply text-[11px] uppercase tracking-widest font-medium; }
 
+  /* Campos de formulario — táctiles en mobile (44px, 16px para evitar el zoom de iOS),
+     compactos en sm+ (comportamiento de escritorio original). */
+  .bb-input {
+    @apply w-full font-body text-base sm:text-sm text-ink bg-canvas border border-line rounded-card
+           px-3 py-2 min-h-[44px] sm:min-h-0
+           focus:outline-none focus:ring-1 focus:ring-gold placeholder:text-ink-soft;
+  }
+  .bb-label     { @apply block text-[11px] uppercase tracking-widest font-medium text-ink-soft mb-1; }
+
+  /* Objetivo táctil mínimo de 44px solo en mobile */
+  .bb-touch     { @apply min-h-[44px] sm:min-h-0; }
+
   /* Belt-stripe: the iconic belt colors used as status signal */
   .belt-backlog     { background-color: #E4DFD3; color: #15130F; }
   .belt-por_hacer   { background-color: #D8B13A; color: #15130F; }

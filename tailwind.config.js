@@ -34,6 +34,20 @@ export default {
       borderRadius: {
         card: '4px',
       },
+      keyframes: {
+        'bb-slide-in-right': {
+          from: { transform: 'translateX(100%)' },
+          to:   { transform: 'translateX(0)' },
+        },
+        'bb-slide-in-up': {
+          from: { transform: 'translateY(24px)', opacity: '0' },
+          to:   { transform: 'translateY(0)',    opacity: '1' },
+        },
+      },
+      animation: {
+        'bb-slide-in-right': 'bb-slide-in-right 220ms ease-out',
+        'bb-slide-in-up':    'bb-slide-in-up 200ms ease-out',
+      },
     },
   },
   plugins: [],

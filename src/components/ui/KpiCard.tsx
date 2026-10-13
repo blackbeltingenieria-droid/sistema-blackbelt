@@ -15,7 +15,7 @@ export function KpiCard({ label, value, valueColor = 'text-ink', subtext, classN
   return (
     <Card className={className}>
       <p className="bb-label-xs text-ink-soft mb-1">{label}</p>
-      <p className={`bb-mono text-2xl font-medium ${valueColor}`}>{value}</p>
+      <p className={`bb-mono text-xl sm:text-2xl font-medium break-words ${valueColor}`}>{value}</p>
       {subtext && <p className="bb-body text-xs text-ink-soft mt-1">{subtext}</p>}
     </Card>
   );

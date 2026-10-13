@@ -7,7 +7,7 @@ import { DashboardPage } from '../features/dashboard-general/DashboardPage';
 
 function Placeholder({ name }: { name: string }) {
   return (
-    <div className="min-h-screen bg-canvas flex items-center justify-center" style={{ paddingLeft: '240px' }}>
+    <div className="min-h-[60vh] lg:min-h-screen bg-canvas flex items-center justify-center px-4">
       <div className="text-center">
         <p className="bb-display font-bold text-ink text-2xl mb-2">{name}</p>
         <p className="bb-body text-ink-soft">Módulo en construcción — próximo sprint</p>
