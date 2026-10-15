@@ -13,7 +13,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard',            shortLabel: 'Inicio',      to: '/dashboard',         icon: '📈', primary: true },
   { label: 'Mi panel',             shortLabel: 'Mi panel',    to: '/my',                icon: '🏠', primary: true },
-  { label: 'Movimientos',          shortLabel: 'Movim.',      to: '/movements',         icon: '💸', primary: true },
+  { label: 'Ingresos y egresos',   shortLabel: 'Registros',      to: '/movements',         icon: '💸', primary: true },
   { label: 'Clientes y Proyectos', shortLabel: 'Proyectos',   to: '/clients-projects',  icon: '📋' },
   { label: 'Presupuestos y reparto', shortLabel: 'Presup.',   to: '/budgets',           icon: '🎯' },
   { label: 'Resultados y caja',    shortLabel: 'Resultados',  to: '/results-cash',      icon: '🧮' },

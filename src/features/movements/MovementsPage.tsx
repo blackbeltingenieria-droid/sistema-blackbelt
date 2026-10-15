@@ -1,5 +1,7 @@
 // features/movements/MovementsPage.tsx
-// Libro único de movimientos: listado con filtros, alta/edición, validación y control automático.
+// Ingresos y egresos. Vista simple por defecto: una fila por evento (el pago/cobro enlazado va
+// dentro), registro rápido y explicaciones en palabras simples. La "Vista contable" muestra
+// todas las filas del libro único del Modelo C, como antes.
 
 import { useMemo, useState } from 'react';
 import { Card } from '../../components/ui/Card';
@@ -13,24 +15,46 @@ import { MOVEMENT_STATUS, RECORD_TYPE } from '../../types/database';
 import { UnitBadge } from '../catalogs/components/UnitBadge';
 import { MovementFormModal } from './components/MovementFormModal';
 import { ControlBadge, StatusBadge } from './components/MovementBadges';
+import { QuickMovementModal } from './components/QuickMovementModal';
+import { isEligible } from './domain/movement-rules';
+import {
+  CONTROL_HELP, SIMPLE_TYPE, groupEvents, isQuickEditable, quickInputFromMovement,
+  type EventGroup, type QuickCatalogs, type QuickEntryInput,
+} from './domain/quick-entry';
 import { useMovementCatalogs } from './hooks/useMovementCatalogs';
 import { useMovements } from './hooks/useMovements';
-import { createMovement, deleteMovement, setMovementStatus, updateMovement } from './services/movement-service';
+import {
+  createMovement, createQuickMovement, deleteEvent, deleteMovement, setEventStatus, setMovementStatus,
+  updateMovement, updateQuickMovement,
+} from './services/movement-service';
 import type { MovementFormValues, MovementRow } from './types';
 
 const ALL = '';
+type Event = EventGroup<MovementRow>;
+type Modal =
+  | { kind: 'none' }
+  | { kind: 'quick'; event: Event | null }
+  | { kind: 'full'; movement: MovementRow | null };
+
+const btn = 'px-3 py-1.5 min-h-[36px] border border-line rounded-card bb-body text-xs hover:bg-canvas whitespace-nowrap';
 
 export function MovementsPage() {
   const { rows, loading, error, refetch } = useMovements();
   const catalogs = useMovementCatalogs();
   const [month, setMonth] = useState(currentMonth());
+  const [view, setView] = useState<'simple' | 'contable'>('simple');
+  const [kindFilter, setKindFilter] = useState<'' | 'in' | 'out'>(ALL);
+  const [onlyPending, setOnlyPending] = useState(false);
+  const [modal, setModal] = useState<Modal>({ kind: 'none' });
+  const [actionError, setActionError] = useState<string | null>(null);
+  // filtros de la vista contable
   const [recordType, setRecordType] = useState(ALL);
   const [status, setStatus] = useState(ALL);
   const [unit, setUnit] = useState(ALL);
-  const [onlyPending, setOnlyPending] = useState(false);
-  const [editing, setEditing] = useState<MovementRow | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+
+  const quickCatalogs: QuickCatalogs = {
+    units: catalogs.units, areas: catalogs.areas, categories: catalogs.categories, projects: catalogs.projects,
+  };
 
   const months = useMemo(() => {
     const set = new Set(rows.map((r) => r.mes).filter(Boolean));
@@ -38,16 +62,17 @@ export function MovementsPage() {
     return [...set].sort().reverse();
   }, [rows]);
 
-  const filtered = rows.filter(
-    (r) =>
-      (month === ALL || r.mes === month) &&
-      (recordType === ALL || r.record_type === recordType) &&
-      (status === ALL || r.status === status) &&
-      (unit === ALL || r.unitCode === unit) &&
-      (!onlyPending || r.control !== 'OK' || r.status !== MOVEMENT_STATUS.VALIDADO),
+  const monthRows = rows.filter((r) => month === ALL || r.mes === month);
+  const events = useMemo(() => groupEvents(monthRows), [monthRows]);
+  const counts = (e: Event) => isEligible(e.main);
+  const visibleEvents = events.filter(
+    (e) =>
+      (kindFilter === ALL || (kindFilter === 'in' ? SIMPLE_TYPE[e.main.record_type].sign > 0 : SIMPLE_TYPE[e.main.record_type].sign < 0)) &&
+      (!onlyPending || !counts(e)),
   );
-  const feeding = filtered.filter((r) => r.status === MOVEMENT_STATUS.VALIDADO && r.control === 'OK').length;
-  const needsReview = filtered.filter((r) => r.control !== 'OK').length;
+  const entered = events.filter((e) => counts(e) && e.main.record_type === RECORD_TYPE.INGRESO_RECONOCIDO).reduce((a, e) => a + e.main.amount, 0);
+  const spent = events.filter((e) => counts(e) && e.main.record_type === RECORD_TYPE.COSTO_RECONOCIDO).reduce((a, e) => a + e.main.amount, 0);
+  const notCounting = events.filter((e) => !counts(e)).length;
 
   async function run(action: () => Promise<unknown>) {
     setActionError(null);
@@ -59,7 +84,63 @@ export function MovementsPage() {
     }
   }
 
-  const columns: Column<MovementRow>[] = [
+  const idsOf = (e: Event) => [e.main.id, ...(e.pair ? [e.pair.id] : [])];
+  const openEvent = (e: Event) =>
+    setModal(isQuickEditable(e.main.record_type) ? { kind: 'quick', event: e } : { kind: 'full', movement: e.main });
+
+  const simpleColumns: Column<Event>[] = [
+    {
+      key: 'what', header: 'Qué fue', mobile: 'title',
+      render: (e) => (
+        <div>
+          <p className="bb-body text-sm font-medium text-ink">{e.main.detail || e.main.counterparty || SIMPLE_TYPE[e.main.record_type].label}</p>
+          <p className="bb-mono text-[11px] text-ink-soft">{formatDateShort(e.main.movement_date)} · {e.main.movement_code}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'kind', header: 'Tipo', mobile: 'key',
+      render: (e) => {
+        const t = SIMPLE_TYPE[e.main.record_type];
+        return <span className={`bb-body text-xs font-semibold whitespace-nowrap ${t.sign > 0 ? 'text-belt-en_revision' : 'text-rust'}`}>{t.sign > 0 ? '↑' : '↓'} {t.label}</span>;
+      },
+    },
+    {
+      key: 'for', header: 'Para', mobile: 'key',
+      render: (e) => e.main.unitCode === 'CORP'
+        ? <span className="bb-body text-xs text-ink">Toda la empresa</span>
+        : (
+          <span className="bb-body text-xs text-ink">
+            <span className="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle" style={{ backgroundColor: e.main.unitColor }} />
+            {e.main.unitName}
+          </span>
+        ),
+    },
+    {
+      key: 'amount', header: 'Monto', mobile: 'highlight', className: 'text-right',
+      render: (e) => {
+        const sign = SIMPLE_TYPE[e.main.record_type].sign;
+        return <span className={`bb-mono text-sm font-semibold whitespace-nowrap ${sign > 0 ? 'text-belt-en_revision' : 'text-rust'}`}>{sign > 0 ? '+' : '−'} {formatPen(e.main.amount)}</span>;
+      },
+    },
+    {
+      key: 'state', header: 'Estado', mobile: 'key', mobileFull: true,
+      render: (e) => <EventState event={e} />,
+    },
+    {
+      key: 'actions', header: '', mobile: 'action',
+      render: (e) => (
+        <div className="flex flex-wrap gap-2" onClick={(ev) => ev.stopPropagation()}>
+          <button type="button" className={btn} onClick={() => openEvent(e)}>Editar</button>
+          {e.main.status === MOVEMENT_STATUS.BORRADOR && e.main.control === 'OK' && (
+            <button type="button" className={btn} onClick={() => void run(() => setEventStatus(idsOf(e), MOVEMENT_STATUS.VALIDADO))}>Validar</button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  const accountingColumns: Column<MovementRow>[] = [
     {
       key: 'code', header: 'Movimiento', mobile: 'title',
       render: (r) => (
@@ -80,26 +161,20 @@ export function MovementsPage() {
     { key: 'amount', header: 'Importe', mobile: 'highlight', className: 'text-right', render: (r) => <span className="bb-mono text-sm font-medium text-ink">{formatPen(r.amount)}</span> },
     {
       key: 'state', header: 'Estado / Control', mobile: 'key', mobileFull: true,
-      render: (r) => (
-        <div className="flex flex-wrap gap-1.5"><StatusBadge status={r.status} /><ControlBadge control={r.control} /></div>
-      ),
+      render: (r) => <div className="flex flex-wrap gap-1.5"><StatusBadge status={r.status} /><ControlBadge control={r.control} /></div>,
     },
     {
       key: 'actions', header: 'Acciones', mobile: 'action',
       render: (r) => (
         <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-          <button type="button"
-            onClick={() => void run(() => setMovementStatus(r.id, r.status === 'VALIDADO' ? 'BORRADOR' : 'VALIDADO'))}
-            className="px-3 py-1.5 border border-line rounded-card bb-body text-xs hover:bg-canvas whitespace-nowrap">
+          <button type="button" className={btn}
+            onClick={() => void run(() => setMovementStatus(r.id, r.status === 'VALIDADO' ? 'BORRADOR' : 'VALIDADO'))}>
             {r.status === 'VALIDADO' ? 'A borrador' : 'Validar'}
           </button>
-          <button type="button" onClick={() => { setEditing(r); setShowForm(true); }}
-            className="px-3 py-1.5 border border-line rounded-card bb-body text-xs hover:bg-canvas">
-            Editar
-          </button>
+          <button type="button" className={btn} onClick={() => setModal({ kind: 'full', movement: r })}>Editar</button>
           {r.status === 'BORRADOR' && (
-            <button type="button" onClick={() => void run(() => deleteMovement(r.id))}
-              className="px-3 py-1.5 border border-line rounded-card bb-body text-xs text-rust hover:bg-canvas" aria-label={`Eliminar ${r.movement_code}`}>
+            <button type="button" className={`${btn} text-rust`} aria-label={`Eliminar ${r.movement_code}`}
+              onClick={() => void run(() => deleteMovement(r.id))}>
               Eliminar
             </button>
           )}
@@ -107,9 +182,17 @@ export function MovementsPage() {
       ),
     },
   ];
+  const accountingRows = monthRows.filter(
+    (r) => (recordType === ALL || r.record_type === recordType) && (status === ALL || r.status === status) && (unit === ALL || r.unitCode === unit),
+  );
 
-  async function submit(values: MovementFormValues) {
-    if (editing) await updateMovement(editing.id, values);
+  async function submitQuick(input: QuickEntryInput) {
+    if (modal.kind === 'quick' && modal.event) await updateQuickMovement(modal.event.main, modal.event.pair, input, quickCatalogs);
+    else await createQuickMovement(input, quickCatalogs);
+    await refetch();
+  }
+  async function submitFull(values: MovementFormValues) {
+    if (modal.kind === 'full' && modal.movement) await updateMovement(modal.movement.id, values);
     else await createMovement(values);
     await refetch();
   }
@@ -118,12 +201,12 @@ export function MovementsPage() {
     <div className="min-h-screen bg-canvas">
       <div className="px-4 py-5 sm:px-6 lg:px-10 lg:py-9">
         <PageHeader
-          title="Movimientos"
-          subtitle="Libro único: una fila por evento. Solo VALIDADO con control OK alimenta presupuestos, resultados y caja."
+          title="Ingresos y egresos"
+          subtitle="Registra lo que entró y salió. Lo demás se completa solo."
           actions={
-            <button type="button" onClick={() => { setEditing(null); setShowForm(true); }}
+            <button type="button" onClick={() => setModal({ kind: 'quick', event: null })} data-testid="quick-open"
               className="flex items-center justify-center bg-gold text-ink px-4 py-2.5 min-h-[44px] sm:min-h-0 rounded-card bb-body text-sm font-semibold hover:bg-gold/90">
-              + Registrar movimiento
+              + Registrar
             </button>
           }
         />
@@ -131,70 +214,141 @@ export function MovementsPage() {
         {(error || catalogs.error) && <ErrorBanner message={(error ?? catalogs.error) as string} onRetry={() => void refetch()} />}
         {actionError && <ErrorBanner message={actionError} onClose={() => setActionError(null)} />}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-          <KpiCard label="Movimientos listados" value={String(filtered.length)} />
-          <KpiCard label="Alimentan reportes" value={String(feeding)} subtext="VALIDADO + control OK" valueColor="text-belt-en_revision" />
-          <KpiCard label="Con control ≠ OK" value={String(needsReview)} subtext="No alimentan reportes" valueColor={needsReview ? 'text-rust' : 'text-ink'} />
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4 [&>*:last-child]:col-span-2 sm:[&>*:last-child]:col-span-1">
+          <KpiCard label="Ingresos del mes" value={formatPen(entered)} valueColor="text-belt-en_revision" subtext="Lo que vendiste" />
+          <KpiCard label="Egresos del mes" value={formatPen(spent)} valueColor="text-rust" subtext="Lo que gastaste" />
+          <KpiCard label="No cuentan todavía" value={String(notCounting)} valueColor={notCounting ? 'text-rust' : 'text-ink'}
+            subtext={notCounting ? 'Revísalos: falta validar o corregir' : 'Todo está contando'} />
         </div>
 
         <Card className="mb-4" padding="p-3 sm:p-4">
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 items-end">
             <MonthSelect id="f-month" value={month} months={months} onChange={setMonth} includeAll />
-            <div>
-              <label className="bb-label" htmlFor="f-type">Tipo</label>
-              <select id="f-type" className="bb-input !bg-paper" value={recordType} onChange={(e) => setRecordType(e.target.value)}>
-                <option value={ALL}>Todos</option>
-                {Object.values(RECORD_TYPE).map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="bb-label" htmlFor="f-status">Estado</label>
-              <select id="f-status" className="bb-input !bg-paper" value={status} onChange={(e) => setStatus(e.target.value)}>
-                <option value={ALL}>Todos</option>
-                <option value="BORRADOR">BORRADOR</option>
-                <option value="VALIDADO">VALIDADO</option>
-              </select>
-            </div>
-            <div>
-              <label className="bb-label" htmlFor="f-unit">Unidad</label>
-              <select id="f-unit" className="bb-input !bg-paper" value={unit} onChange={(e) => setUnit(e.target.value)}>
-                <option value={ALL}>Todas</option>
-                {catalogs.units.map((u) => <option key={u.id} value={u.code}>{u.code}</option>)}
-              </select>
-            </div>
-            <label className="col-span-2 lg:col-span-1 flex items-center gap-2 bb-body text-sm text-ink min-h-[44px] sm:min-h-0 pb-1">
-              <input type="checkbox" className="w-4 h-4 accent-ink" checked={onlyPending} onChange={(e) => setOnlyPending(e.target.checked)} />
-              Solo pendientes de revisión
-            </label>
+            {view === 'simple' ? (
+              <>
+                <div>
+                  <label className="bb-label" htmlFor="f-kind">Mostrar</label>
+                  <select id="f-kind" className="bb-input !bg-paper" value={kindFilter} onChange={(e) => setKindFilter(e.target.value as '' | 'in' | 'out')}>
+                    <option value={ALL}>Todo</option>
+                    <option value="in">Solo ingresos</option>
+                    <option value="out">Solo egresos</option>
+                  </select>
+                </div>
+                <label className="flex items-center gap-2 bb-body text-sm text-ink min-h-[44px] sm:min-h-0 pb-1">
+                  <input type="checkbox" className="w-4 h-4 accent-ink" checked={onlyPending} onChange={(e) => setOnlyPending(e.target.checked)} />
+                  Solo los que no cuentan
+                </label>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="bb-label" htmlFor="f-type">Tipo</label>
+                  <select id="f-type" className="bb-input !bg-paper" value={recordType} onChange={(e) => setRecordType(e.target.value)}>
+                    <option value={ALL}>Todos</option>
+                    {Object.values(RECORD_TYPE).map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="bb-label" htmlFor="f-status">Estado</label>
+                  <select id="f-status" className="bb-input !bg-paper" value={status} onChange={(e) => setStatus(e.target.value)}>
+                    <option value={ALL}>Todos</option>
+                    <option value="BORRADOR">BORRADOR</option>
+                    <option value="VALIDADO">VALIDADO</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="bb-label" htmlFor="f-unit">Unidad</label>
+                  <select id="f-unit" className="bb-input !bg-paper" value={unit} onChange={(e) => setUnit(e.target.value)}>
+                    <option value={ALL}>Todas</option>
+                    {catalogs.units.map((u) => <option key={u.id} value={u.code}>{u.code}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+          </div>
+          <div className="mt-3 flex justify-end">
+            <button type="button" className="bb-body text-xs text-ink-soft underline" data-testid="toggle-view"
+              onClick={() => setView(view === 'simple' ? 'contable' : 'simple')}>
+              {view === 'simple' ? 'Ver vista contable (todas las filas)' : 'Volver a la vista simple'}
+            </button>
           </div>
         </Card>
 
         <Card padding="p-0" plainBelow="xl">
           {loading ? (
-            <p className="bb-body text-ink-soft text-center py-12 text-sm">Cargando movimientos…</p>
+            <p className="bb-body text-ink-soft text-center py-12 text-sm">Cargando…</p>
+          ) : view === 'simple' ? (
+            <DataTable
+              columns={simpleColumns}
+              rows={visibleEvents}
+              getRowKey={(e) => e.main.id}
+              onRowClick={openEvent}
+              emptyMessage="No hay registros este mes. Pulsa «+ Registrar» para agregar el primero."
+              cardsBelow="xl"
+            />
           ) : (
             <DataTable
-              columns={columns}
-              rows={filtered}
+              columns={accountingColumns}
+              rows={accountingRows}
               getRowKey={(r) => r.id}
-              onRowClick={(r) => { setEditing(r); setShowForm(true); }}
-              emptyMessage="No hay movimientos con estos filtros. Registra el primero con «+ Registrar movimiento»."
+              onRowClick={(r) => setModal({ kind: 'full', movement: r })}
+              emptyMessage="No hay movimientos con estos filtros."
               cardsBelow="xl"
             />
           )}
         </Card>
       </div>
 
-      {showForm && !catalogs.loading && (
+      {modal.kind === 'quick' && !catalogs.loading && (
+        <QuickMovementModal
+          catalogs={quickCatalogs}
+          initial={modal.event ? quickInputFromMovement(modal.event.main, Boolean(modal.event.pair), quickCatalogs) : undefined}
+          editingCode={modal.event?.main.movement_code}
+          onSubmit={submitQuick}
+          onClose={() => setModal({ kind: 'none' })}
+          onAdvanced={() => setModal({ kind: 'full', movement: null })}
+          onDelete={modal.event ? async () => {
+            const ids = idsOf(modal.event as Event);
+            await setEventStatus(ids, MOVEMENT_STATUS.BORRADOR);
+            await deleteEvent(ids);
+            await refetch();
+          } : undefined}
+        />
+      )}
+      {modal.kind === 'full' && !catalogs.loading && (
         <MovementFormModal
-          movement={editing}
+          movement={modal.movement}
           units={catalogs.units}
           areas={catalogs.areas}
           categories={catalogs.categories}
           projects={catalogs.projects}
-          onSubmit={submit}
-          onClose={() => { setShowForm(false); setEditing(null); }}
+          onSubmit={submitFull}
+          onClose={() => setModal({ kind: 'none' })}
         />
+      )}
+    </div>
+  );
+}
+
+/** Estado en palabras: si cuenta, si ya se pagó y, si no cuenta, por qué. */
+function EventState({ event: e }: { event: Event }) {
+  const counts = isEligible(e.main);
+  const isIncome = e.main.record_type === RECORD_TYPE.INGRESO_RECONOCIDO;
+  const settledLabel = e.pair ? (isIncome ? 'Cobrado' : 'Pagado') : null;
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap gap-1.5">
+        <span className={`inline-flex rounded-full px-2 py-0.5 bb-body text-[11px] font-medium ${counts ? 'bg-belt-en_revision text-paper' : 'bg-belt-por_hacer text-ink'}`}>
+          {counts ? '✓ Cuenta' : e.main.control === 'OK' ? 'Borrador' : 'Revisar'}
+        </span>
+        {settledLabel && (
+          <span className="inline-flex rounded-full px-2 py-0.5 bb-body text-[11px] font-medium bg-canvas text-ink border border-line">{settledLabel}</span>
+        )}
+      </div>
+      {!counts && (
+        <p className="bb-body text-[11px] text-ink-soft max-w-[260px]">
+          {e.main.control === 'OK' ? 'Pulsa «Validar» para que cuente.' : CONTROL_HELP[e.main.control]}
+        </p>
       )}
     </div>
   );
