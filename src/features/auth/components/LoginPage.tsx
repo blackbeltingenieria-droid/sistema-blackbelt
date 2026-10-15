@@ -37,7 +37,7 @@ export function LoginPage() {
                 className="w-full flex items-center gap-3 text-left bg-paper border border-line rounded-card px-4 py-3 min-h-[56px] hover:border-ink transition-colors"
               >
                 <span className="w-9 h-9 rounded-full bg-ink text-paper bb-display font-bold text-xs flex items-center justify-center shrink-0">
-                  {u.fullName.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()}
+                  {u.fullName.replace(/^DEMO - /, '').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block bb-body text-sm font-medium text-ink truncate">{u.fullName}</span>

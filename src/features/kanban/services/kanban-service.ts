@@ -92,6 +92,14 @@ export async function getTaskCountsByProject(): Promise<Record<number, { total: 
   return out;
 }
 
+/** Todas las tareas del equipo (resumen del Admin). */
+export async function getAllTasks(): Promise<Task[]> {
+  if (!isSupabaseConfigured()) return mem.tasks.map((t) => ({ ...t }));
+  const { data, error } = await sb().from('tasks').select('*').order('id');
+  if (error) throw toError('getAllTasks', error);
+  return (data ?? []) as Task[];
+}
+
 /** Tareas asignadas a un especialista (panel y Kanban del colaborador). */
 export async function getTasksBySpecialist(specialistId: number): Promise<Task[]> {
   if (!isSupabaseConfigured()) return mem.tasks.filter((t) => t.assignee_id === specialistId).map((t) => ({ ...t }));

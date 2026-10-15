@@ -9,6 +9,7 @@ import { KanbanHomePage } from '../features/kanban/KanbanHomePage';
 import { KanbanPage } from '../features/kanban/KanbanPage';
 import { MovementsPage } from '../features/movements/MovementsPage';
 import { ResultsCashPage } from '../features/results-cash/ResultsCashPage';
+import { UsersPage } from '../features/users/UsersPage';
 import { WorkHoursPage } from '../features/work-hours/WorkHoursPage';
 
 // Las rutas se protegen por rol en RootLayout → RequireRole (ver features/auth/access.ts).
@@ -27,6 +28,7 @@ export const router = createBrowserRouter([
       { path: 'results-cash',       element: <ResultsCashPage /> },
       { path: 'kanban',             element: <KanbanHomePage /> },
       { path: 'kanban/:projectId',  element: <KanbanPage /> },
+      { path: 'users',              element: <UsersPage /> },
       { path: 'work-hours',         element: <WorkHoursPage /> },
       { path: '*',                  element: <Navigate to="/" replace /> },
     ],

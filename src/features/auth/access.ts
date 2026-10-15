@@ -10,6 +10,7 @@ export const ROUTE_ACCESS: Record<string, RoleCode[]> = {
   '/movements':        [ROLE_CODE.ADMIN],
   '/budgets':          [ROLE_CODE.ADMIN],
   '/results-cash':     [ROLE_CODE.ADMIN],
+  '/users':            [ROLE_CODE.ADMIN],
   '/my':               [ROLE_CODE.ADMIN, ROLE_CODE.COLABORADOR],
   '/kanban':           [ROLE_CODE.ADMIN, ROLE_CODE.COLABORADOR],
   '/work-hours':       [ROLE_CODE.ADMIN, ROLE_CODE.COLABORADOR],

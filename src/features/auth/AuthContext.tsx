@@ -11,6 +11,8 @@ export interface AuthValue {
   error: string | null;
   signIn: (userId: number) => void;
   signOut: () => void;
+  /** Vuelve a leer los usuarios (p. ej. tras vincular un especialista). `selectId` inicia sesión con ese usuario. */
+  refresh: (selectId?: number) => Promise<void>;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- el contexto se consume solo vía useAuth
@@ -47,9 +49,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     storeUserId(null);
   }, []);
 
+  const refresh = useCallback(async (selectId?: number) => {
+    const list = await getLoginUsers();
+    setUsers(list);
+    const wanted = selectId ?? user?.id ?? readStoredUserId();
+    const next = list.find((u) => u.id === wanted) ?? null;
+    setUser(next);
+    storeUserId(next ? next.id : null);
+  }, [user]);
+
   const value = useMemo<AuthValue>(
-    () => ({ user, users, loading, error, signIn, signOut }),
-    [user, users, loading, error, signIn, signOut],
+    () => ({ user, users, loading, error, signIn, signOut, refresh }),
+    [user, users, loading, error, signIn, signOut, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
