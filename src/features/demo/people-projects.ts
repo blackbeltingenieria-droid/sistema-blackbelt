@@ -194,11 +194,24 @@ export function buildWorkHours(tasks: DbTask[]): DbWorkHour[] {
           id: id(++n), specialist_id: id(s), project_id: id(proj.n),
           task_id: myTasks.length && e % 2 === 0 ? myTasks[e % myTasks.length].id : null,
           work_date: demoDate(month, 2 + ((e * 5 + s * 2) % 26)),
-          hours: Math.round((1 + rng() * 7) * 2) / 2,
+          ...demoTimes(Math.round((1 + rng() * 7) * 2) / 2, (s + e) % 2 === 0 ? 8 : 9),
           description: withPrefix(`Trabajo en ${proj.p.service.toLowerCase()}`),
         });
       }
     }
   }
   return out;
+}
+
+/** Horario de ejemplo coherente con las horas: desde 08:00/09:00; con almuerzo 13:00–14:00 si pasa de 4 h. */
+function demoTimes(hours: number, startHour: number) {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const at = (min: number) => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`;
+  const start = startHour * 60;
+  const lunch = start + hours * 60 > 13 * 60;
+  const end = start + hours * 60 + (lunch ? 60 : 0);
+  return {
+    hours, start_time: at(start), end_time: at(end),
+    break_minutes: lunch ? 60 : 0, breaks: lunch ? '13:00-14:00' : null,
+  };
 }

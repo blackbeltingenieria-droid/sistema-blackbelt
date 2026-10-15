@@ -4,6 +4,7 @@ import { computeResults } from '../results-cash/domain/calculations';
 import { rankSoftwareTools } from '../dashboard-general/domain/tool-ranking';
 import { DEMO_ID_BASE, DEMO_MONTHS, DEMO_PREFIX, DEMO_MOVEMENT_CODE_PREFIX } from './constants';
 import { buildDemoDataset } from './index';
+import { breaksFromText, computeWorkedHours } from '../work-hours/time-range';
 
 const UNIT_CODE: Record<number, string> = { 1: 'UN01', 2: 'UN02', 3: 'UN03', 4: 'UN04', 5: 'UN05', 6: 'CORP' };
 const d = buildDemoDataset();
@@ -119,5 +120,15 @@ describe('datos demo: integridad referencial', () => {
   it('Kanban en las 5 columnas y horas en los 6 meses', () => {
     expect(new Set(d.tasks.map((t) => t.status)).size).toBe(5);
     expect(new Set(d.workHours.map((h) => h.work_date.slice(0, 7))).size).toBe(6);
+  });
+});
+
+describe('horario de las horas demo', () => {
+  it('desde–hasta menos descansos coincide con las horas guardadas', async () => {
+    for (const w of buildDemoDataset().workHours) {
+      const r = computeWorkedHours(w.start_time ?? '', w.end_time ?? '', breaksFromText(w.breaks));
+      expect(r.error).toBeNull();
+      expect(r.hours).toBe(w.hours);
+    }
   });
 });
