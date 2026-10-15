@@ -92,6 +92,15 @@ export async function getTaskCountsByProject(): Promise<Record<number, { total: 
   return out;
 }
 
+/** Tareas asignadas a un especialista (panel y Kanban del colaborador). */
+export async function getTasksBySpecialist(specialistId: number): Promise<Task[]> {
+  if (!isSupabaseConfigured()) return mem.tasks.filter((t) => t.assignee_id === specialistId).map((t) => ({ ...t }));
+
+  const { data, error } = await sb().from('tasks').select('*').eq('assignee_id', specialistId).order('id');
+  if (error) throw toError('getTasksBySpecialist', error);
+  return (data ?? []) as Task[];
+}
+
 export async function getSprints(projectId: number): Promise<Sprint[]> {
   if (!isSupabaseConfigured()) return mem.sprints.filter((s) => s.project_id === projectId).map((s) => ({ ...s }));
 

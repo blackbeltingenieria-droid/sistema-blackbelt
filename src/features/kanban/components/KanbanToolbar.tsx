@@ -13,9 +13,11 @@ interface KanbanToolbarProps {
   onFilterChange: (filter: SprintFilter) => void;
   onNewTask: () => void;
   onNewSprint: () => void;
+  /** false para el colaborador: solo filtra y mueve sus tareas, no crea tareas ni sprints. */
+  canManage?: boolean;
 }
 
-export function KanbanToolbar({ sprints, filter, onFilterChange, onNewTask, onNewSprint }: KanbanToolbarProps) {
+export function KanbanToolbar({ sprints, filter, onFilterChange, onNewTask, onNewSprint, canManage = true }: KanbanToolbarProps) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-end gap-3 mb-4">
       <div className="sm:flex-1 sm:max-w-sm">
@@ -34,6 +36,7 @@ export function KanbanToolbar({ sprints, filter, onFilterChange, onNewTask, onNe
           {sprints.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
       </div>
+      {canManage && (
       <div className="flex flex-col-reverse sm:flex-row gap-2">
         <button type="button" onClick={onNewSprint}
           className="flex items-center justify-center border border-line bg-paper text-ink px-3 py-2 min-h-[44px] sm:min-h-0 rounded-card bb-body text-sm font-medium hover:bg-canvas transition-colors">
@@ -44,6 +47,7 @@ export function KanbanToolbar({ sprints, filter, onFilterChange, onNewTask, onNe
           + Nueva tarea
         </button>
       </div>
+      )}
     </div>
   );
 }

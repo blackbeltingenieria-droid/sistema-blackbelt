@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useAuth } from '../auth/hooks/useAuth';
 import { useKanbanBoard } from './hooks/useKanbanBoard';
 import { KanbanBoard } from './components/KanbanBoard';
 import { KanbanToolbar, FILTER_ALL, FILTER_NO_SPRINT, type SprintFilter } from './components/KanbanToolbar';
@@ -18,12 +19,15 @@ export function KanbanPage() {
   const projectId = Number(rawId);
   const valid = Number.isInteger(projectId) && projectId > 0;
 
+  const { user } = useAuth();
+  const isCollaborator = user?.role === 'colaborador';
   const board = useKanbanBoard(valid ? projectId : 0);
   const [filter, setFilter]           = useState<SprintFilter>(FILTER_ALL);
   const [taskModal, setTaskModal]     = useState<TaskModal>(null);
   const [showSprintModal, setShowSprintModal] = useState(false);
 
   const visibleTasks = board.tasks.filter((t) => {
+    if (isCollaborator && t.assignee_id !== user?.specialistId) return false;
     if (filter === FILTER_ALL) return true;
     if (filter === FILTER_NO_SPRINT) return t.sprint_id === null;
     return t.sprint_id === filter;
@@ -74,6 +78,7 @@ export function KanbanPage() {
               onFilterChange={setFilter}
               onNewTask={() => setTaskModal({ mode: 'new', status: TASK_STATUS.BACKLOG })}
               onNewSprint={() => setShowSprintModal(true)}
+              canManage={!isCollaborator}
             />
 
             <KanbanBoard
@@ -104,7 +109,7 @@ export function KanbanPage() {
               await board.addTask(payload);
             }
           }}
-          onDelete={taskModal.mode === 'edit' ? async () => board.removeTask(taskModal.task.id) : undefined}
+          onDelete={taskModal.mode === 'edit' && !isCollaborator ? async () => board.removeTask(taskModal.task.id) : undefined}
           onClose={() => setTaskModal(null)}
         />
       )}

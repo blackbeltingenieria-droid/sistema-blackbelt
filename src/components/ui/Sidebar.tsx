@@ -1,27 +1,19 @@
 // components/ui/Sidebar.tsx
 // Fixed left navigation — 240px, ink background, logo + nav + user footer.
 // Solo visible desde 1024px (lg); en pantallas menores la navegación es MobileNav.
-// Reused across ALL authenticated views. Do not add business-logic here.
+// Recibe los ítems ya filtrados por rol. Reused across ALL authenticated views. Do not add business-logic here.
 
 import { NavLink } from 'react-router-dom';
+import type { NavItem } from './nav-items';
 
-export interface NavItem {
-  label: string;
-  shortLabel: string; // etiqueta corta para la barra inferior en mobile
-  to: string;
-  icon: string; // emoji or lucide-style text for now
+interface SidebarProps {
+  items: NavItem[];
+  userName: string;
+  roleLabel: string;
+  onSignOut: () => void;
 }
 
-// Única fuente de navegación: la reutiliza MobileNav (barra inferior en mobile).
-export const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard',            shortLabel: 'Inicio',    to: '/dashboard',         icon: '📈' },
-  { label: 'Clientes y Proyectos', shortLabel: 'Proyectos', to: '/clients-projects',  icon: '📋' },
-  { label: 'Costos por Giro',      shortLabel: 'Costos',    to: '/finance',           icon: '💸' },
-  { label: 'Kanban',               shortLabel: 'Kanban',    to: '/kanban',            icon: '🗂️'  },
-  { label: 'Horas-hombre',         shortLabel: 'Horas',     to: '/work-hours',        icon: '⏱️'  },
-];
-
-export function Sidebar() {
+export function Sidebar({ items, userName, roleLabel, onSignOut }: SidebarProps) {
   return (
     <aside className="hidden lg:flex fixed inset-y-0 left-0 w-[240px] bg-ink flex-col z-20">
       {/* Logo */}
@@ -29,11 +21,11 @@ export function Sidebar() {
         <div className="flex items-center gap-3">
           {/* Belt-stripe mark — 5 belt colors stacked as the logo accent */}
           <div className="flex flex-col gap-0.5 w-2">
-            <span className="block h-1 rounded-sm" style={{ backgroundColor: '#E4DFD3' }} />
-            <span className="block h-1 rounded-sm" style={{ backgroundColor: '#D8B13A' }} />
-            <span className="block h-1 rounded-sm" style={{ backgroundColor: '#C9742E' }} />
-            <span className="block h-1 rounded-sm" style={{ backgroundColor: '#6E8B55' }} />
-            <span className="block h-1 rounded-sm" style={{ backgroundColor: '#15130F' }} />
+            <span className="block h-1 rounded-sm bg-belt-backlog" />
+            <span className="block h-1 rounded-sm bg-belt-por_hacer" />
+            <span className="block h-1 rounded-sm bg-belt-en_curso" />
+            <span className="block h-1 rounded-sm bg-belt-en_revision" />
+            <span className="block h-1 rounded-sm bg-belt-hecho" />
           </div>
           <div>
             <p className="bb-display font-bold text-paper text-sm tracking-wide leading-none">
@@ -48,7 +40,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {NAV_ITEMS.map((item) => (
+        {items.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -67,16 +59,19 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* User footer */}
+      {/* Usuario y cierre de sesión */}
       <div className="px-4 py-4 border-t border-white/10">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gold flex items-center justify-center flex-shrink-0">
-            <span className="bb-display font-bold text-ink text-xs">A</span>
+            <span className="bb-display font-bold text-ink text-xs">{userName.slice(0, 1).toUpperCase()}</span>
           </div>
-          <div className="min-w-0">
-            <p className="bb-body text-paper text-xs font-medium truncate">Admin</p>
-            <p className="bb-body text-white/40 text-[10px] truncate">Blackbelt Group</p>
+          <div className="min-w-0 flex-1">
+            <p className="bb-body text-paper text-xs font-medium truncate">{userName}</p>
+            <p className="bb-body text-white/40 text-[10px] truncate">{roleLabel}</p>
           </div>
+          <button type="button" onClick={onSignOut} className="bb-body text-[11px] text-white/60 hover:text-white underline underline-offset-2">
+            Cambiar
+          </button>
         </div>
       </div>
     </aside>

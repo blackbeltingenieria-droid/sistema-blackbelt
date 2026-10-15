@@ -2,18 +2,21 @@
 // Portada del módulo (/kanban): lista de proyectos con acceso a su tablero.
 
 import { Link } from 'react-router-dom';
+import { useAuth } from '../auth/hooks/useAuth';
 import { useKanbanProjects } from './hooks/useKanbanProjects';
 import { StatusChip } from '../../components/ui/StatusChip';
 import type { ProjectStatus } from '../../types/database';
 
 export function KanbanHomePage() {
-  const { projects, counts, loading, error, refetch } = useKanbanProjects();
+  const { user } = useAuth();
+  const mine = user?.role === 'colaborador' ? (user.specialistId ?? -1) : null;
+  const { projects, counts, loading, error, refetch } = useKanbanProjects(mine);
 
   return (
     <div className="min-h-screen bg-canvas">
       <div className="px-4 py-5 sm:px-6 lg:px-10 lg:py-9">
         <h1 className="bb-display font-bold text-ink text-2xl">Kanban</h1>
-        <p className="bb-body text-sm text-ink-soft mb-5">Elige un proyecto para ver su tablero.</p>
+        <p className="bb-body text-sm text-ink-soft mb-5">{mine === null ? 'Elige un proyecto para ver su tablero.' : 'Estos son los proyectos donde tienes tareas asignadas.'}</p>
 
         {loading ? (
           <p className="bb-body text-ink-soft py-10 text-center">Cargando proyectos…</p>
