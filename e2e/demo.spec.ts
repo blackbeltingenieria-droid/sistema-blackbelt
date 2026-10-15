@@ -8,6 +8,7 @@ test.describe('Datos demo + Resultados y caja visual', () => {
   test('el Admin ve los 5 gráficos, KPIs con variación y frases simples, sin desbordes', async ({ page }) => {
     await login(page, 'Admin General');
     await go(page, 'Resultados y caja');
+    await page.getByRole('tab', { name: 'Gráficos' }).click();
     for (const id of ['chart-unit-bars', 'chart-waterfall', 'chart-trend', 'chart-cash', 'chart-categories']) {
       await expect(page.getByTestId(id)).toBeVisible();
       await expect(page.getByTestId(id).locator('svg').first()).toBeVisible();
@@ -27,6 +28,7 @@ test.describe('Datos demo + Resultados y caja visual', () => {
   test('clic en una barra abre la lista de movimientos que la forman (trazabilidad)', async ({ page }) => {
     await login(page, 'Admin General');
     await go(page, 'Resultados y caja');
+    await page.getByRole('tab', { name: 'Gráficos' }).click();
     await expect(page.getByTestId('chart-unit-bars')).toBeVisible();
     await page.getByTestId('chart-unit-bars').locator('.recharts-bar-rectangle path').first().click({ force: true });
     await expect(page.getByRole('dialog')).toBeVisible();
