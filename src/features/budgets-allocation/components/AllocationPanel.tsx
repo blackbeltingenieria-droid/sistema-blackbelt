@@ -19,9 +19,11 @@ interface AllocationPanelProps {
   summary: AllocationSummary;
   onTrace: (title: string, ids: number[]) => void;
   onSave: (pcts: AllocationPcts, note: string) => Promise<void>;
+  /** Propuestas para rellenar con un clic (la persona revisa y guarda). */
+  suggestions?: { previous?: MonthAllocation | null; byIncome?: AllocationPcts | null };
 }
 
-export function AllocationPanel({ month, initial, summary, onTrace, onSave }: AllocationPanelProps) {
+export function AllocationPanel({ month, initial, summary, onTrace, onSave, suggestions }: AllocationPanelProps) {
   const [texts, setTexts] = useState<Record<string, string>>(
     () => Object.fromEntries(COMMERCIAL_UNIT_CODES.map((c) => [c, initial.pcts[c] ? String(initial.pcts[c]) : ''])),
   );
@@ -49,12 +51,33 @@ export function AllocationPanel({ month, initial, summary, onTrace, onSave }: Al
     }
   }
 
+  function applySuggestion(p: AllocationPcts, criterion: string) {
+    setTexts(Object.fromEntries(COMMERCIAL_UNIT_CODES.map((c) => [c, p[c] ? String(p[c]) : ''])));
+    if (!note.trim()) setNote(criterion);
+    setSaved(false);
+  }
+  const prev = suggestions?.previous && sumAllocation(suggestions.previous.pcts) > 0 ? suggestions.previous : null;
+  const byIncome = suggestions?.byIncome ?? null;
+
   return (
     <Card>
       <h2 className="bb-display font-semibold text-ink text-base">Reparto de CORP · {month}</h2>
       <p className="bb-body text-xs text-ink-soft mb-3">
         Solo se reparte el gasto CORP compartido, reconocido y validado. Por defecto 0 % (sin repartir): no se asume 20 % parejo.
       </p>
+      {(prev || byIncome) && (
+        <div className="flex flex-wrap items-center gap-2 mb-4" data-testid="allocation-suggestions">
+          <span className="bb-body text-xs text-ink-soft">Rellenar con un clic:</span>
+          {prev && (
+            <button type="button" className="bb-touch px-3 border border-line rounded-card bb-body text-xs hover:bg-canvas"
+              onClick={() => applySuggestion(prev.pcts, prev.note || 'Igual que el mes anterior')}>Igual que el mes anterior</button>
+          )}
+          {byIncome && (
+            <button type="button" className="bb-touch px-3 border border-line rounded-card bb-body text-xs hover:bg-canvas"
+              onClick={() => applySuggestion(byIncome, 'Proporcional a las ventas del mes')}>Según las ventas del mes</button>
+          )}
+        </div>
+      )}
       <dl className="grid grid-cols-2 gap-3 mb-4">
         <div>
           <dt className="bb-label-xs text-ink-soft mb-0.5">Gasto CORP del mes</dt>

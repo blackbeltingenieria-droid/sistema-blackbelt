@@ -174,3 +174,29 @@ export function budgetsToCopy(from: DbBudget[], existingTarget: DbBudget[], toMo
       income_target: b.income_target, cost_target: b.cost_target, comment: b.comment,
     }));
 }
+
+// ─── Autorrelleno de metas: lo del mes anterior ──────────────────────────────
+export interface BudgetSuggestion {
+  prevSell: number | null;   // meta de ventas del mes anterior (null si no había meta)
+  prevSpend: number | null;  // meta de gastos del mes anterior
+  realSell: number;          // lo que se vendió el mes anterior
+  realSpend: number;         // lo que se gastó el mes anterior
+}
+
+/** Para una unidad (y tipo de gasto, si no es "General"): meta y real del mes anterior. */
+export function budgetSuggestion(input: {
+  prevMes: string; prevBudgets: DbBudget[]; movements: EnrichedMovement[];
+  unitId: number; categoryId: number; generalCategoryId: number | undefined;
+}): BudgetSuggestion {
+  const { prevMes, prevBudgets, movements, unitId, categoryId, generalCategoryId } = input;
+  const isGeneral = categoryId === generalCategoryId;
+  const metas = prevBudgets.filter((b) => b.month === prevMes && b.business_unit_id === unitId && (isGeneral || b.cost_category_id === categoryId));
+  const real = movements.filter((m) => isEligible(m) && m.mes === prevMes && m.business_unit_id === unitId);
+  const sumBy = (t: string, cat?: number) => r2(real.filter((m) => m.record_type === t && (cat === undefined || m.cost_category_id === cat)).reduce((a, m) => a + m.amount, 0));
+  return {
+    prevSell: metas.length ? r2(metas.reduce((a, b) => a + b.income_target, 0)) : null,
+    prevSpend: metas.length ? r2(metas.reduce((a, b) => a + b.cost_target, 0)) : null,
+    realSell: sumBy(RECORD_TYPE.INGRESO_RECONOCIDO),
+    realSpend: sumBy(RECORD_TYPE.COSTO_RECONOCIDO, isGeneral ? undefined : categoryId),
+  };
+}

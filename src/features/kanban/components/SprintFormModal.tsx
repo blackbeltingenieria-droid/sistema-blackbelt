@@ -4,21 +4,27 @@
 import { type FormEvent, useState } from 'react';
 import { ModalShell } from '../../../components/ui/ModalShell';
 import { SPRINT_STATUS } from '../../../types/database';
+import { addDays, todayIso } from '../../../lib/autofill';
+import { nextSprintDefaults } from '../kanban-defaults';
 import type { CreateSprintPayload, Sprint } from '../types';
 
 interface SprintFormModalProps {
   projectId: number;
+  /** Sprints existentes: para proponer nombre y fechas del siguiente. */
+  sprints?: Sprint[];
   onSubmit: (payload: CreateSprintPayload) => Promise<Sprint>;
   onClose: () => void;
 }
 
 const FORM_ID = 'sprint-form';
 
-export function SprintFormModal({ projectId, onSubmit, onClose }: SprintFormModalProps) {
-  const [name, setName]           = useState('');
+export function SprintFormModal({ projectId, sprints = [], onSubmit, onClose }: SprintFormModalProps) {
+  const next = nextSprintDefaults(sprints, todayIso());
+  const [name, setName]           = useState(next.name);
   const [goal, setGoal]           = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate]     = useState('');
+  const [startDate, setStartDate] = useState(next.start);
+  const [endDate, setEndDate]     = useState(next.end);
+  const [endTouched, setEndTouched] = useState(false);
   const [status, setStatus]       = useState<Sprint['status']>(SPRINT_STATUS.ACTIVO);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]         = useState<string | null>(null);
@@ -67,11 +73,11 @@ export function SprintFormModal({ projectId, onSubmit, onClose }: SprintFormModa
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-3">
           <div>
             <label className="bb-label" htmlFor="sprint-start">Inicio</label>
-            <input id="sprint-start" type="date" className="bb-input" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <input id="sprint-start" type="date" className="bb-input" value={startDate} onChange={(e) => { setStartDate(e.target.value); if (!endTouched && e.target.value) setEndDate(addDays(e.target.value, 13)); }} />
           </div>
           <div>
             <label className="bb-label" htmlFor="sprint-end">Fin</label>
-            <input id="sprint-end" type="date" className="bb-input" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            <input id="sprint-end" type="date" className="bb-input" value={endDate} onChange={(e) => { setEndDate(e.target.value); setEndTouched(true); }} />
           </div>
         </div>
         <div>

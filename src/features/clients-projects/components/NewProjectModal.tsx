@@ -4,7 +4,11 @@
 
 import { type FormEvent, useEffect, useState } from 'react';
 import { ModalShell } from '../../../components/ui/ModalShell';
-import { createProject, getBusinessUnits, getClients } from '../services/project-service';
+import { createProject, getBusinessUnits, getClients, getProjectRows } from '../services/project-service';
+import { addMonths, nextCode, todayIso } from '../../../lib/autofill';
+import { useAuth } from '../../auth/hooks/useAuth';
+import { clientTypeFromDoc, lastUnitOfClient, suggestProjectName, suggestUnitCode } from '../domain/project-defaults';
+import type { ProjectRow } from '../types';
 import type { BusinessUnit, Client, CreateProjectPayload } from '../types';
 import { PROJECT_STATUS } from '../../../types/database';
 
@@ -14,6 +18,11 @@ interface NewProjectModalProps {
 }
 
 export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
+  const { user } = useAuth();
+  const [projects, setProjects]       = useState<ProjectRow[]>([]);
+  // Campos que la persona cambió a mano: esos ya no se rellenan solos.
+  const [touched, setTouched]         = useState<Set<string>>(new Set());
+  const [autoNote, setAutoNote]       = useState<string | null>(null);
   const [clients, setClients]         = useState<Client[]>([]);
   const [busUnits, setBusUnits]       = useState<BusinessUnit[]>([]);
   const [isNewClient, setIsNewClient] = useState(false);
@@ -39,7 +48,7 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
     status: string;
     notes: string;
   }>({
-    code: '',
+    code: '',              // se rellena con el siguiente código al cargar
     clientId: '',
     newClientName: '',
     newClientDocNumber: '',
@@ -49,29 +58,60 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
     businessUnitId: '',
     name: '',
     service: '',
-    manager: '',
+    manager: (user && user.id !== 0 ? user.fullName : '').toUpperCase(),
     contractedAmount: '',
-    startDate: '',
-    endDate: '',
+    startDate: todayIso(),
+    endDate: addMonths(todayIso(), 3),
     status: PROJECT_STATUS.ACTIVO,
     notes: '',
   });
 
   useEffect(() => {
-    Promise.all([getClients(), getBusinessUnits()])
-      .then(([c, b]) => {
+    Promise.all([getClients(), getBusinessUnits(), getProjectRows()])
+      .then(([c, b, p]) => {
         setClients(c);
         setBusUnits(b);
-        if (b.length > 0) {
-          setForm((prev) => ({ ...prev, businessUnitId: String(b[0].id) }));
-        }
+        setProjects(p);
+        setForm((prev) => ({ ...prev, code: prev.code || nextCode(p.map((x) => x.code), 'PRY', new Date().getFullYear()) }));
       })
       .catch(() => {/* silent — seed already loaded */});
   }, []);
 
+  /** Cambia un campo y rellena solos los que dependen de él (si no se tocaron a mano). */
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    const nowTouched = new Set(touched).add(name);
+    setTouched(nowTouched);
+    setForm((prev) => {
+      const next = { ...prev, [name]: value };
+      const free = (field: string) => !nowTouched.has(field) || field === name;
+      const notes: string[] = [];
+
+      if (name === 'newClientDocNumber' && free('newClientType')) {
+        const t = clientTypeFromDoc(value);
+        if (t) { next.newClientType = t; notes.push(`tipo ${t} (por el ${t === 'Empresa' ? 'RUC' : 'DNI'})`); }
+      }
+      if (name === 'startDate' && value && !nowTouched.has('endDate')) {
+        next.endDate = addMonths(value, 3);
+        notes.push('fin a 3 meses');
+      }
+      if (['service', 'clientId', 'newClientName'].includes(name)) {
+        const clientName = isNewClient ? next.newClientName : (clients.find((c) => String(c.id) === next.clientId)?.name ?? '');
+        if (!nowTouched.has('businessUnitId')) {
+          const code = suggestUnitCode(next.service);
+          const byService = code ? busUnits.find((b) => b.code === code)?.id : undefined;
+          const byClient = !isNewClient && next.clientId ? lastUnitOfClient(projects, Number(next.clientId)) : null;
+          const unitId = byService ?? byClient;
+          if (unitId) {
+            next.businessUnitId = String(unitId);
+            notes.push(`unidad ${busUnits.find((b) => b.id === unitId)?.name ?? ''} (${byService ? 'por el servicio' : 'la de sus proyectos anteriores'})`);
+          }
+        }
+        if (!nowTouched.has('name') && (next.service || clientName)) next.name = suggestProjectName(next.service, clientName);
+      }
+      if (notes.length) setAutoNote(`Relleno automático: ${notes.join(' · ')}.`);
+      return next;
+    });
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -247,6 +287,10 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
             )}
           </div>
 
+          {autoNote && (
+            <p className="bb-body text-xs text-belt-en_revision" data-testid="project-autofill">✓ {autoNote} Puedes cambiarlo.</p>
+          )}
+
           {/* Business unit (Modelo C) */}
           <div>
             <label className={labelCls}>Unidad de negocio</label>
@@ -269,7 +313,7 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
           {/* Code + Project name */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-2">
             <div>
-              <label className={labelCls}>Código (opcional)</label>
+              <label className={labelCls}>Código (automático)</label>
               <input
                 name="code"
                 value={form.code}

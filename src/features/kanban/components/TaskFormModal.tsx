@@ -3,6 +3,7 @@
 
 import { type FormEvent, useState } from 'react';
 import { ModalShell } from '../../../components/ui/ModalShell';
+import { sprintEnd } from '../kanban-defaults';
 import { KANBAN_COLUMNS, type CreateTaskPayload, type Specialist, type Sprint, type Task, type TaskStatus } from '../types';
 
 interface TaskFormModalProps {
@@ -15,20 +16,25 @@ interface TaskFormModalProps {
   onSubmit: (payload: CreateTaskPayload) => Promise<void>;
   onDelete?: () => Promise<void>;
   onClose: () => void;
+  /** Responsable propuesto para tareas nuevas. */
+  defaultAssigneeId?: number | null;
 }
 
 const FORM_ID = 'task-form';
+const isEditingTask = (t: Task | null | undefined) => Boolean(t);
 
 export function TaskFormModal({
-  projectId, task, defaultStatus, defaultSprintId, sprints, specialists, onSubmit, onDelete, onClose,
+  projectId, task, defaultStatus, defaultSprintId, sprints, specialists, onSubmit, onDelete, onClose, defaultAssigneeId = null,
 }: TaskFormModalProps) {
   const isEditing = Boolean(task);
   const [title, setTitle]             = useState(task?.title ?? '');
   const [description, setDescription] = useState(task?.description ?? '');
   const [status, setStatus]           = useState<TaskStatus>(task?.status ?? defaultStatus);
   const [sprintId, setSprintId]       = useState<number | ''>(task ? (task.sprint_id ?? '') : (defaultSprintId ?? ''));
-  const [assigneeId, setAssigneeId]   = useState<number | ''>(task?.assignee_id ?? '');
-  const [dueDate, setDueDate]         = useState(task?.due_date ?? '');
+  const [assigneeId, setAssigneeId]   = useState<number | ''>(task ? (task.assignee_id ?? '') : (defaultAssigneeId ?? ''));
+  // Tarea nueva: la fecha límite es el fin del sprint (cambia sola si cambias de sprint y no la tocaste).
+  const [dueDate, setDueDate]         = useState(task?.due_date ?? (task ? '' : sprintEnd(sprints, defaultSprintId)));
+  const [dueTouched, setDueTouched]   = useState(isEditingTask(task));
   const [submitting, setSubmitting]   = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError]             = useState<string | null>(null);
@@ -111,14 +117,18 @@ export function TaskFormModal({
         <div>
           <label className="bb-label" htmlFor="task-sprint">Sprint</label>
           <select id="task-sprint" className="bb-input" value={sprintId}
-            onChange={(e) => setSprintId(e.target.value === '' ? '' : Number(e.target.value))}>
+            onChange={(e) => {
+              const id = e.target.value === '' ? '' : Number(e.target.value);
+              setSprintId(id);
+              if (!dueTouched) setDueDate(sprintEnd(sprints, id === '' ? null : id));
+            }}>
             <option value="">Sin sprint (backlog general)</option>
             {sprints.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
         <div>
           <label className="bb-label" htmlFor="task-due">Fecha límite — opcional</label>
-          <input id="task-due" type="date" className="bb-input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          <input id="task-due" type="date" className="bb-input" value={dueDate} onChange={(e) => { setDueDate(e.target.value); setDueTouched(true); }} />
         </div>
 
         {error && (

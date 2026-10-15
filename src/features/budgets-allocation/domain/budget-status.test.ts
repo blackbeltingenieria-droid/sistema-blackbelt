@@ -78,3 +78,18 @@ describe('copiar metas del mes anterior', () => {
     expect('id' in copy[0]).toBe(false);
   });
 });
+
+describe('meta sugerida con lo del mes anterior', () => {
+  it('trae la meta anterior y lo real de esa unidad', async () => {
+    const { budgetSuggestion } = await import('./budget-status');
+    const prev = [b({ month: '2026-09', income_target: 2000, cost_target: 800 })];
+    const movs = [
+      mov({ unit: 'UN03', record_type: 'INGRESO_RECONOCIDO', amount: 2500, expense_class: 'NO_APLICA', cost_category_id: CAT_ID.OTR, movement_date: '2026-09-10' }),
+      mov({ unit: 'UN03', amount: 700, expense_class: 'ATRIBUIBLE', cost_category_id: CAT_ID.MO, area_id: AREA_ID.MKT, movement_date: '2026-09-11' }),
+    ];
+    expect(budgetSuggestion({ prevMes: '2026-09', prevBudgets: prev, movements: movs, unitId: 3, categoryId: CAT_ID.OTR, generalCategoryId: CAT_ID.OTR }))
+      .toEqual({ prevSell: 2000, prevSpend: 800, realSell: 2500, realSpend: 700 });
+    expect(budgetSuggestion({ prevMes: '2026-09', prevBudgets: [], movements: movs, unitId: 3, categoryId: CAT_ID.PUB, generalCategoryId: CAT_ID.OTR }))
+      .toEqual({ prevSell: null, prevSpend: null, realSell: 2500, realSpend: 0 });
+  });
+});
