@@ -197,6 +197,13 @@ export function ProjectDetailPanel({ projectId, onClose }: ProjectDetailPanelPro
             />
           </div>
 
+          {detail.pendingBalance > 0 && (
+            <Link to={`/movements?cobrar=${projectId}`} data-testid="register-payment"
+              className="flex items-center justify-center min-h-[44px] bg-gold text-ink rounded-card bb-body text-sm font-semibold hover:bg-gold/90">
+              Registrar pago (falta {formatCurrency(detail.pendingBalance)})
+            </Link>
+          )}
+
           {/* Payment progress bar */}
           <Card padding="p-4">
             <ProgressBar

@@ -260,3 +260,25 @@ export function pendingBalances(movements: EnrichedMovement[], mes: string): { r
     payable: r2(sum(RECORD_TYPE.COSTO_RECONOCIDO) - sum(RECORD_TYPE.PAGO)),
   };
 }
+
+// ─── Cobro de un proyecto: rellenar con lo que falta pagar ───────────────────
+const soles = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** Datos que se rellenan solos al elegir un proyecto con saldo: monto = lo que falta, concepto y cliente. */
+export function projectIncomeFill(p: Pick<ProjectRow, 'projectName' | 'clientName' | 'businessUnitId'>, pending: number) {
+  return {
+    amount: Math.max(0, Math.round(pending * 100) / 100),
+    concept: `Pago de ${p.clientName} – ${p.projectName}`,
+    counterparty: p.clientName,
+    unitId: p.businessUnitId,
+  };
+}
+
+/** Frase simple bajo el monto: cuánto quedará pendiente, si queda pagado o si se pasa. */
+export function projectPaymentNote(pending: number, amount: number): { tone: 'ok' | 'warn'; text: string } | null {
+  if (!(amount > 0)) return null;
+  const left = Math.round((pending - amount) * 100) / 100;
+  if (left < 0) return { tone: 'warn', text: `Es más de lo que falta pagar (${soles(pending)}). Revisa el monto.` };
+  if (left === 0) return { tone: 'ok', text: 'Con este pago el proyecto queda pagado por completo.' };
+  return { tone: 'ok', text: `Después de este pago faltarán ${soles(left)}.` };
+}
