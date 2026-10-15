@@ -19,5 +19,5 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Resultados y caja',    shortLabel: 'Resultados',  to: '/results-cash',      icon: '🧮' },
   { label: 'Kanban',               shortLabel: 'Kanban',      to: '/kanban',            icon: '🗂️', primary: true },
   { label: 'Horas-hombre',         shortLabel: 'Horas',       to: '/work-hours',        icon: '⏱️', primary: true },
-  { label: 'Usuarios',             shortLabel: 'Usuarios',    to: '/users',             icon: '👥' },
+  { label: 'Equipo',               shortLabel: 'Equipo',      to: '/users',             icon: '👥' },
 ];

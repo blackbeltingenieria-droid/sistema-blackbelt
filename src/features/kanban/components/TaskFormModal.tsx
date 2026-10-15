@@ -105,7 +105,7 @@ export function TaskFormModal({
           <select id="task-assignee" className="bb-input" value={assigneeId}
             onChange={(e) => setAssigneeId(e.target.value === '' ? '' : Number(e.target.value))}>
             <option value="">Sin asignar</option>
-            {specialists.map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+            {specialists.filter((s) => s.active || s.id === assigneeId).map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
           </select>
         </div>
         <div>

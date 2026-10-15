@@ -8,7 +8,7 @@ import {
   createTask,
   deleteTask,
   getKanbanProject,
-  getSpecialists,
+  getAllSpecialists,
   getSprints,
   getTasks,
   updateTask,
@@ -41,7 +41,7 @@ export function useKanbanBoard(projectId: number) {
         getKanbanProject(projectId),
         getTasks(projectId),
         getSprints(projectId),
-        getSpecialists(),
+        getAllSpecialists(),
       ]);
       setProject(p);
       setTasks(t);
