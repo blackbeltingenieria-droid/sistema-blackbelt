@@ -12,6 +12,6 @@ import type {
 
 export type { BusinessUnitCode, AreaType, CostCategoryCode };
 
-export interface BusinessUnit extends DbBusinessUnit {}
-export interface Area extends DbArea {}
-export interface CostCategory extends DbCostCategory {}
+export type BusinessUnit = DbBusinessUnit;
+export type Area = DbArea;
+export type CostCategory = DbCostCategory;
