@@ -7,6 +7,7 @@ import { getBusinessUnits } from '../../catalogs/services/catalog-service';
 import { COMMERCIAL_UNIT_CODES, type AllocationPcts, type CommercialUnitCode } from '../../results-cash/domain/calculations';
 import { validateAllocationForm } from '../domain/allocation-validation';
 import { isDuplicateBudget } from '../domain/budget-comparison';
+import { budgetsToCopy } from '../domain/budget-status';
 import type { BudgetFormValues } from '../types';
 import { SEED_ALLOCATION, SEED_BUDGETS } from './seed-data';
 
@@ -62,6 +63,25 @@ export async function deleteBudget(id: number): Promise<void> {
   }
   const { error } = await sb().from('budgets').delete().eq('id', id);
   if (error) throw new Error(`deleteBudget: ${error.message}`);
+}
+
+/** Formulario simple: si ya hay meta para esa combinación, la reemplaza en vez de dar error. */
+export async function saveSimpleBudget(values: BudgetFormValues, id?: number): Promise<void> {
+  const same = (await getBudgets(values.month)).find(
+    (b) => b.id !== id && b.business_unit_id === values.business_unit_id && b.area_id === values.area_id && b.cost_category_id === values.cost_category_id,
+  );
+  if (same && id) await deleteBudget(id);
+  await saveBudget(values, same?.id ?? id);
+}
+
+/** Copia las metas del mes anterior al mes dado (no repite las que ya existen). Devuelve cuántas copió. */
+export async function copyBudgetsFromPreviousMonth(month: string): Promise<number> {
+  const [y, m] = month.split('-').map(Number);
+  const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+  const [from, existing] = await Promise.all([getBudgets(prev), getBudgets(month)]);
+  const rows = budgetsToCopy(from, existing, month);
+  for (const r of rows) await saveBudget(r);
+  return rows.length;
 }
 
 // ─── Reparto mensual CORP ────────────────────────────────────────────────────

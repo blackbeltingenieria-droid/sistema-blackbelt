@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getSpecialists } from '../../kanban/services/kanban-service';
+import { getAllSpecialists } from '../../kanban/services/kanban-service';
 import type { Specialist } from '../../kanban/types';
 import { getUserRows, type UserRow } from '../services/user-service';
 
@@ -12,7 +12,7 @@ export function useUsers() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [u, s] = await Promise.all([getUserRows(), getSpecialists()]);
+      const [u, s] = await Promise.all([getUserRows(), getAllSpecialists()]);
       setUsers(u);
       setSpecialists(s);
     } catch (e) {

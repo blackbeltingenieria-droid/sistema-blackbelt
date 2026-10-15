@@ -5,7 +5,7 @@ import type { DbSpecialist, DbSprint, DbTask } from '../../../types/database';
 import { demoData } from '../../demo/demo-data';
 
 const BASE_SEED_SPECIALISTS: DbSpecialist[] = [
-  { id: 1, full_name: 'Henry Torres Rivera', specialty: 'Dirección general',          active: true },
+  { id: 1, full_name: 'Henry Torres Rivera', specialty: 'Gerente general',            active: true },
   { id: 2, full_name: 'Juan Pérez Vásquez',  specialty: 'Transformación digital',     active: true },
   { id: 3, full_name: 'Marco Guzmán',        specialty: 'Geofísica y suelos',         active: true },
   { id: 4, full_name: 'Sofía Castro',        specialty: 'Incubación y emprendimiento', active: true },

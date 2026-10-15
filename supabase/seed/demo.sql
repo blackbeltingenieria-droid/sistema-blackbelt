@@ -123,7 +123,7 @@ INSERT INTO project_payments (id, project_id, amount, payment_date, payment_meth
 ON CONFLICT DO NOTHING;
 
 INSERT INTO specialists (id, full_name, email, specialty, active) VALUES
-  (9001, 'DEMO - Henry Torres Rivera', 'esp1@demo.blackbelt.local', 'Dirección general', TRUE),
+  (9001, 'DEMO - Henry Torres Rivera', 'esp1@demo.blackbelt.local', 'Gerente general', TRUE),
   (9002, 'DEMO - Juan Pérez Vásquez', 'esp2@demo.blackbelt.local', 'Transformación digital', TRUE),
   (9003, 'DEMO - Marco Guzmán León', 'esp3@demo.blackbelt.local', 'Geofísica y suelos', TRUE),
   (9004, 'DEMO - Sofía Castro Ríos', 'esp4@demo.blackbelt.local', 'Incubación y emprendimiento', TRUE),
@@ -135,8 +135,8 @@ INSERT INTO specialists (id, full_name, email, specialty, active) VALUES
 ON CONFLICT DO NOTHING;
 
 INSERT INTO users (id, email, full_name, role_id, specialist_id, active) VALUES
-  (9001, 'admin@demo.blackbelt.local', 'DEMO - Admin General', (SELECT id FROM roles WHERE code = 'admin'), NULL, TRUE),
-  (9002, 'admin.kanban@demo.blackbelt.local', 'DEMO - Admin con Kanban', (SELECT id FROM roles WHERE code = 'admin'), 9001, TRUE),
+  (9001, 'henry@demo.blackbelt.local', 'DEMO - Henry Torres Rivera', (SELECT id FROM roles WHERE code = 'admin'), 9001, TRUE),
+  (9002, 'admin@demo.blackbelt.local', 'DEMO - Admin General', (SELECT id FROM roles WHERE code = 'admin'), NULL, TRUE),
   (9011, 'juan@demo.blackbelt.local', 'DEMO - Juan Pérez Vásquez', (SELECT id FROM roles WHERE code = 'colaborador'), 9002, TRUE),
   (9012, 'marco@demo.blackbelt.local', 'DEMO - Marco Guzmán León', (SELECT id FROM roles WHERE code = 'colaborador'), 9003, TRUE),
   (9013, 'sofia@demo.blackbelt.local', 'DEMO - Sofía Castro Ríos', (SELECT id FROM roles WHERE code = 'colaborador'), 9004, TRUE),

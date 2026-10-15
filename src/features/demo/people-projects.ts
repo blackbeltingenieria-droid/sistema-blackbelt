@@ -33,7 +33,7 @@ export function buildClients(): DbClient[] {
 
 // ─── Especialistas (9: 1 dirección + 8 colaboradores) ────────────────────────
 const SPECIALIST_DEFS: [string, string][] = [
-  ['Henry Torres Rivera', 'Dirección general'], ['Juan Pérez Vásquez', 'Transformación digital'],
+  ['Henry Torres Rivera', 'Gerente general'], ['Juan Pérez Vásquez', 'Transformación digital'],
   ['Marco Guzmán León', 'Geofísica y suelos'], ['Sofía Castro Ríos', 'Incubación y emprendimiento'],
   ['Valeria Quispe Mori', 'Procesos y calidad'], ['Andrés Rojas Cano', 'Desarrollo de software'],
   ['Mónica Vega Salas', 'Investigación y tesis'], ['Luis Cárdenas Ponce', 'Datos e inteligencia de negocios'],
@@ -46,7 +46,7 @@ export function buildSpecialists(): DbSpecialist[] {
   }));
 }
 
-// ─── Usuarios: 2 admins (uno sin vínculo, otro con Kanban) + 8 colaboradores ─
+// ─── Usuarios: Henry Torres Rivera (Gerente General, primer usuario, con Kanban) + 1 admin sin vínculo + 8 colaboradores ─
 export interface DemoUserDef { id: number; email: string; full_name: string; role: RoleCode; specialist_id: number | null }
 
 export function buildUserDefs(): DemoUserDef[] {
@@ -55,8 +55,8 @@ export function buildUserDefs(): DemoUserDef[] {
     full_name: withPrefix(name), role: 'colaborador', specialist_id: id(i + 2),
   }));
   return [
-    { id: id(1), email: `admin${DEMO_EMAIL_DOMAIN}`, full_name: withPrefix('Admin General'), role: 'admin', specialist_id: null },
-    { id: id(2), email: `admin.kanban${DEMO_EMAIL_DOMAIN}`, full_name: withPrefix('Admin con Kanban'), role: 'admin', specialist_id: id(1) },
+    { id: id(1), email: `henry${DEMO_EMAIL_DOMAIN}`, full_name: withPrefix('Henry Torres Rivera'), role: 'admin', specialist_id: id(1) },
+    { id: id(2), email: `admin${DEMO_EMAIL_DOMAIN}`, full_name: withPrefix('Admin General'), role: 'admin', specialist_id: null },
     ...colabs,
   ];
 }
@@ -194,11 +194,24 @@ export function buildWorkHours(tasks: DbTask[]): DbWorkHour[] {
           id: id(++n), specialist_id: id(s), project_id: id(proj.n),
           task_id: myTasks.length && e % 2 === 0 ? myTasks[e % myTasks.length].id : null,
           work_date: demoDate(month, 2 + ((e * 5 + s * 2) % 26)),
-          hours: Math.round((1 + rng() * 7) * 2) / 2,
+          ...demoTimes(Math.round((1 + rng() * 7) * 2) / 2, (s + e) % 2 === 0 ? 8 : 9),
           description: withPrefix(`Trabajo en ${proj.p.service.toLowerCase()}`),
         });
       }
     }
   }
   return out;
+}
+
+/** Horario de ejemplo coherente con las horas: desde 08:00/09:00; con almuerzo 13:00–14:00 si pasa de 4 h. */
+function demoTimes(hours: number, startHour: number) {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const at = (min: number) => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`;
+  const start = startHour * 60;
+  const lunch = start + hours * 60 > 13 * 60;
+  const end = start + hours * 60 + (lunch ? 60 : 0);
+  return {
+    hours, start_time: at(start), end_time: at(end),
+    break_minutes: lunch ? 60 : 0, breaks: lunch ? '13:00-14:00' : null,
+  };
 }

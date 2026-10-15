@@ -118,7 +118,11 @@ async function load(db: Db): Promise<void> {
   await insertChunks(db, 'users', toDbUsers(roleIds));
   await insertChunks(db, 'sprints', d.sprints);
   await insertChunks(db, 'tasks', d.tasks);
-  await insertChunks(db, 'work_hours', d.workHours);
+  // Solo columnas base: funciona aunque la base de desarrollo no tenga la migración de horario (20261016000001).
+  await insertChunks(db, 'work_hours', d.workHours.map((w) => ({
+    id: w.id, specialist_id: w.specialist_id, project_id: w.project_id, task_id: w.task_id,
+    work_date: w.work_date, hours: w.hours, description: w.description,
+  })));
   await insertChunks(db, 'movements', d.movements);
   await insertChunks(db, 'budgets', d.budgets);
   await insertChunks(db, 'corp_allocation', d.allocation);

@@ -3,8 +3,8 @@
 // movimientos VALIDADO + OK, y viaja con los movement_id que la componen.
 
 import { isSupabaseConfigured, supabase } from '../../../lib/supabase';
-import { SETTING_KEY } from '../../../types/database';
-import { getAllocationsByMonth } from '../../budgets-allocation/services/budget-service';
+import { SETTING_KEY, type DbBudget } from '../../../types/database';
+import { getAllocationsByMonth, getBudgets } from '../../budgets-allocation/services/budget-service';
 import { getMovements } from '../../movements/services/movement-service';
 import type { EnrichedMovement } from '../../movements/types';
 import {
@@ -52,10 +52,11 @@ export interface MonthReport {
   previous: ResultsReport;          // mes anterior, para la variación de los KPIs
   evolution: MonthlyPoint[];        // últimos 6 meses
   cashByMonth: CashPoint[];         // últimos 6 meses
+  budgets: DbBudget[];              // metas del mes (para el aviso de presupuesto del Resumen)
 }
 
 export async function getMonthReport(mes: string): Promise<MonthReport> {
-  const [movements, allocations, opening] = await Promise.all([getMovements(), getAllocationsByMonth(), getOpeningCash()]);
+  const [movements, allocations, opening, budgets] = await Promise.all([getMovements(), getAllocationsByMonth(), getOpeningCash(), getBudgets(mes)]);
   const pcts = allocations[mes]?.pcts ?? {};
   const months = lastMonths(mes, 6);
   return {
@@ -67,6 +68,7 @@ export async function getMonthReport(mes: string): Promise<MonthReport> {
     evolution: monthlyEvolution(movements, allocations, months),
     cashByMonth: cashEvolution(movements, opening, months),
     movements,
+    budgets,
     pendingReview: movements.filter((m) => m.control !== 'OK').length,
     validMovementsInMonth: movements.filter((m) => m.mes === mes && m.status === 'VALIDADO' && m.control === 'OK').length,
   };

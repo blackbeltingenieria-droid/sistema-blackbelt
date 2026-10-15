@@ -332,8 +332,13 @@ export interface DbWorkHour {
   project_id: number;
   task_id: number | null;
   work_date: string;                // date → ISO string
-  hours: number;                    // 0 < horas ≤ 24
+  hours: number;                    // 0 < horas ≤ 24 (= fin − inicio − descansos)
   description: string | null;
+  // Migración 20261016000001 (opcionales: registros antiguos sin horario)
+  start_time?: string | null;       // 'HH:MM' (Postgres TIME devuelve 'HH:MM:SS')
+  end_time?: string | null;         // 'HH:MM'; menor que start_time = cruzó la medianoche
+  break_minutes?: number;           // minutos de descanso descontados
+  breaks?: string | null;           // "13:00-14:00, 16:00-16:15"
   created_at?: string;
 }
 

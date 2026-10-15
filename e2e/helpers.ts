@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 
 const SHORT: Record<string, string> = {
-  Dashboard: 'Inicio', 'Mi panel': 'Mi panel', Movimientos: 'Movim.', Kanban: 'Kanban', 'Horas-hombre': 'Horas',
+  Dashboard: 'Inicio', 'Mi panel': 'Mi panel', 'Ingresos y egresos': 'Registros', Kanban: 'Kanban', 'Horas-hombre': 'Horas',
 };
 
 /** Entra como un usuario del selector «¿Quién eres?». Datos seed en memoria: cada carga reinicia. */

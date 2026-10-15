@@ -3,7 +3,7 @@ import { go, rowOf, vis, login, noHorizontalScroll } from './helpers';
 
 test.describe('Admin: flujos principales', () => {
   test.beforeEach(async ({ page }) => {
-    await login(page, 'Administración Blackbelt');
+    await login(page, 'Henry Torres');
   });
 
   test('crear cliente + proyecto', async ({ page }) => {
@@ -24,31 +24,23 @@ test.describe('Admin: flujos principales', () => {
     await noHorizontalScroll(page);
   });
 
-  test('registrar, editar y validar un gasto; se refleja en Resultados', async ({ page }) => {
-    await go(page, 'Movimientos');
-    await page.getByRole('button', { name: '+ Registrar movimiento' }).click();
+  test('registrar y editar un gasto con el formulario simple; se refleja en Resultados', async ({ page }) => {
+    await go(page, 'Ingresos y egresos');
+    await page.getByTestId('quick-open').click();
     const dlg = page.getByRole('dialog');
-    await dlg.getByLabel('Importe (S/)').fill('321.50');
-    await dlg.getByLabel('Tipo de registro').selectOption('COSTO_RECONOCIDO');
-    await dlg.getByLabel('Unidad beneficiaria').selectOption({ index: 1 });
-    await dlg.getByLabel('Área gestora').selectOption({ index: 1 });
-    await dlg.getByLabel('Categoría').selectOption({ index: 1 });
-    await dlg.getByLabel('Detalle / concepto').fill('Gasto E2E');
-    await dlg.getByRole('button', { name: 'Registrar', exact: true }).click();
+    await dlg.getByTestId('quick-kind-egreso').click();
+    await dlg.getByLabel('Monto (S/)').fill('321.50');
+    await dlg.getByLabel('¿Qué fue?').fill('Gasto E2E taxi');
+    await dlg.getByRole('button', { name: 'Guardar' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(vis(page, '321.50')).toBeVisible();
 
     // Editar
-    const card = rowOf(page, '321.50');
-    await card.getByRole('button', { name: 'Editar' }).click();
-    await page.getByRole('dialog').getByLabel('Importe (S/)').fill('322.75');
-    await page.getByRole('dialog').getByRole('button', { name: 'Guardar cambios' }).click();
+    await rowOf(page, '321.50').getByRole('button', { name: 'Editar' }).click();
+    await page.getByRole('dialog').getByLabel('Monto (S/)').fill('322.75');
+    await page.getByRole('dialog').getByRole('button', { name: 'Guardar' }).click();
     await expect(vis(page, '322.75')).toBeVisible();
-
-    // Validar
-    const edited = rowOf(page, '322.75');
-    await edited.getByRole('button', { name: 'Validar' }).click();
-    await expect(edited.getByRole('button', { name: 'A borrador' })).toBeVisible();
+    await expect(rowOf(page, '322.75')).toContainText('Cuenta');
 
     // Se refleja en Resultados y caja
     await go(page, 'Resultados y caja');
@@ -77,19 +69,34 @@ test.describe('Admin: flujos principales', () => {
     await noHorizontalScroll(page);
   });
 
-  test('registrar horas-hombre', async ({ page }) => {
+  test('registrar horas-hombre de una hora a otra, con almuerzo', async ({ page }) => {
     await go(page, 'Horas-hombre');
     await page.getByLabel('Persona').selectOption({ index: 1 });
     await page.getByLabel('Proyecto', { exact: true }).selectOption({ index: 1 });
-    await page.getByLabel('Horas').fill('3.5');
-    await page.getByLabel(/Descripción/).fill('Hora E2E');
+    await page.locator('#wh-start').fill('08:00');
+    await page.locator('#wh-end').fill('17:30');
+    await page.getByRole('button', { name: '+ Almuerzo 13:00–14:00' }).click();
+    await expect(page.getByTestId('hours-total')).toContainText('Total: 8 h 30 min');
+    await expect(page.getByTestId('hours-total')).toContainText('1 h de descanso');
+    await page.getByLabel(/¿Qué hiciste\?/).fill('Hora E2E');
     await page.getByRole('button', { name: 'Registrar horas' }).click();
-    await expect(vis(page, '3.5 h')).toBeVisible();
+    await expect(vis(page, '08:00–17:30')).toBeVisible();
+    await expect(vis(page, '8 h 30 min')).toBeVisible();
     await noHorizontalScroll(page);
   });
 
+  test('un descanso fuera del horario muestra un aviso claro', async ({ page }) => {
+    await go(page, 'Horas-hombre');
+    await page.locator('#wh-start').fill('08:00');
+    await page.locator('#wh-end').fill('12:00');
+    await page.getByRole('button', { name: '+ Agregar descanso' }).click();
+    await page.locator('#wh-b0-s').fill('12:30');
+    await page.locator('#wh-b0-e').fill('13:00');
+    await expect(page.getByTestId('hours-total')).toContainText('dentro del horario');
+  });
+
   test('recorre todas las pantallas sin desborde horizontal', async ({ page }) => {
-    for (const l of ['Movimientos', 'Clientes y Proyectos', 'Presupuestos y reparto', 'Resultados y caja', 'Kanban', 'Horas-hombre', 'Dashboard']) {
+    for (const l of ['Ingresos y egresos', 'Clientes y Proyectos', 'Presupuesto', 'Resultados y caja', 'Kanban', 'Horas-hombre', 'Equipo', 'Dashboard']) {
       await go(page, l);
       await page.waitForTimeout(300);
       await noHorizontalScroll(page);
