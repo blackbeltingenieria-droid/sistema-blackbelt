@@ -3,11 +3,12 @@
 
 import type { DbClient, DbProject, DbProjectPayment } from '../../../types/database';
 import { SEED_BUSINESS_UNITS } from '../../catalogs/services/seed-data';
+import { demoData } from '../../demo/demo-data';
 
 export { SEED_BUSINESS_UNITS };
 
 // ─── 04_CLIENTES: Clientes con campos completos de la hoja oficial ───────────
-export const SEED_CLIENTS: DbClient[] = [
+const BASE_SEED_CLIENTS: DbClient[] = [
   {
     id: 1,
     name: 'Wilmer Sánchez Mamani',
@@ -77,7 +78,7 @@ export const SEED_CLIENTS: DbClient[] = [
 ];
 
 // ─── 05_PROYECTOS: Proyectos con campos y códigos de la hoja oficial ──────────
-export const SEED_PROJECTS: DbProject[] = [
+const BASE_SEED_PROJECTS: DbProject[] = [
   {
     id: 1,
     code: 'PRY-2026-001',
@@ -201,7 +202,7 @@ export const SEED_PROJECTS: DbProject[] = [
 ];
 
 // ─── Pagos de proyectos ──────────────────────────────────────────────────────
-export const SEED_PAYMENTS: DbProjectPayment[] = [
+const BASE_SEED_PAYMENTS: DbProjectPayment[] = [
   // Proyecto 1 (3000 contratado, 2000 pagado)
   { id: 1,  project_id: 1, amount: 2000,  payment_date: '2024-02-15', payment_method: 'transferencia' },
   // Proyecto 2 (120,000 contratado, 60,000 pagado)
@@ -219,3 +220,9 @@ export const SEED_PAYMENTS: DbProjectPayment[] = [
   // Proyecto 8 (55,000 contratado, 15,000 pagado)
   { id: 9,  project_id: 8, amount: 15000, payment_date: '2024-09-15', payment_method: 'transferencia' },
 ];
+
+export const SEED_CLIENTS: typeof BASE_SEED_CLIENTS = demoData ? demoData.clients : BASE_SEED_CLIENTS;
+
+export const SEED_PROJECTS: typeof BASE_SEED_PROJECTS = demoData ? demoData.projects : BASE_SEED_PROJECTS;
+
+export const SEED_PAYMENTS: typeof BASE_SEED_PAYMENTS = demoData ? demoData.payments : BASE_SEED_PAYMENTS;

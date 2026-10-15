@@ -2,15 +2,16 @@
 // Datos de ejemplo para desarrollo local (sin Supabase configurado). Viven en memoria.
 
 import type { DbSpecialist, DbSprint, DbTask } from '../../../types/database';
+import { demoData } from '../../demo/demo-data';
 
-export const SEED_SPECIALISTS: DbSpecialist[] = [
+const BASE_SEED_SPECIALISTS: DbSpecialist[] = [
   { id: 1, full_name: 'Henry Torres Rivera', specialty: 'Dirección general',          active: true },
   { id: 2, full_name: 'Juan Pérez Vásquez',  specialty: 'Transformación digital',     active: true },
   { id: 3, full_name: 'Marco Guzmán',        specialty: 'Geofísica y suelos',         active: true },
   { id: 4, full_name: 'Sofía Castro',        specialty: 'Incubación y emprendimiento', active: true },
 ];
 
-export const SEED_SPRINTS: DbSprint[] = [
+const BASE_SEED_SPRINTS: DbSprint[] = [
   { id: 1, project_id: 1, name: 'Sprint 1 — Marco teórico', goal: 'Cerrar revisión bibliográfica y diseño metodológico',
     start_date: '2026-10-05', end_date: '2026-10-19', status: 'activo' },
   { id: 2, project_id: 1, name: 'Sprint 2 — Experimentos', goal: null,
@@ -19,7 +20,7 @@ export const SEED_SPRINTS: DbSprint[] = [
     start_date: '2026-10-05', end_date: '2026-10-19', status: 'activo' },
 ];
 
-export const SEED_TASKS: DbTask[] = [
+const BASE_SEED_TASKS: DbTask[] = [
   { id: 1, project_id: 1, sprint_id: 1, title: 'Revisión bibliográfica (30 fuentes)', description: 'Priorizar artículos de los últimos 5 años.',
     status: 'hecho', assignee_id: 1, due_date: '2026-10-09' },
   { id: 2, project_id: 1, sprint_id: 1, title: 'Redactar marco teórico', description: null,
@@ -37,3 +38,9 @@ export const SEED_TASKS: DbTask[] = [
   { id: 8, project_id: 2, sprint_id: 3, title: 'Configurar conector ERP Cloud', description: null,
     status: 'por_hacer', assignee_id: 2, due_date: '2026-10-16' },
 ];
+
+export const SEED_SPECIALISTS: typeof BASE_SEED_SPECIALISTS = demoData ? demoData.specialists : BASE_SEED_SPECIALISTS;
+
+export const SEED_SPRINTS: typeof BASE_SEED_SPRINTS = demoData ? demoData.sprints : BASE_SEED_SPRINTS;
+
+export const SEED_TASKS: typeof BASE_SEED_TASKS = demoData ? demoData.tasks : BASE_SEED_TASKS;

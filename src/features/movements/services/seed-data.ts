@@ -4,6 +4,7 @@
 // Ids de catálogo: unidades UN01–UN05=1–5, CORP=6; áreas y categorías según catalogs/seed-data.
 
 import type { DbMovement } from '../../../types/database';
+import { demoData } from '../../demo/demo-data';
 
 type SeedInput = Omit<DbMovement, 'id' | 'movement_code'> & { n: number };
 
@@ -20,7 +21,7 @@ const base = {
 
 // Áreas: ADM=3 MKT=2 FIN=4 U03-MET=13 U03-TEC=14 U04-CAM=16 U05-INN=18 U05-MER=21
 // Categorías: MO=1 PUB=2 SOFT=3 SERV=4 MAT=5 ACT=13 CXC=14 SOC=16 OTR=17
-export const SEED_MOVEMENTS: DbMovement[] = [
+const BASE_SEED_MOVEMENTS: DbMovement[] = [
   m(1,  { ...base, movement_date: '2026-10-02', record_type: 'COSTO_RECONOCIDO', amount: 180,  business_unit_id: 6, area_id: 3,  responsible: 'ADMINISTRACIÓN', cost_category_id: 4,  expense_class: 'COMPARTIDO', counterparty: 'BITEL', detail: 'Plan WhatsApp / llamadas de Blackbelt', status: 'VALIDADO' }),
   m(2,  { ...base, movement_date: '2026-10-03', record_type: 'COSTO_RECONOCIDO', amount: 350,  business_unit_id: 1, area_id: 2,  responsible: 'MARKETING', cost_category_id: 2,  expense_class: 'ATRIBUIBLE', counterparty: 'META', detail: 'Meta Ads — optimización de procesos', payment_method: 'TARJETA', status: 'VALIDADO' }),
   m(3,  { ...base, movement_date: '2026-10-03', record_type: 'COSTO_RECONOCIDO', amount: 280,  business_unit_id: 2, area_id: 2,  responsible: 'MARKETING', cost_category_id: 2,  expense_class: 'ATRIBUIBLE', counterparty: 'META', detail: 'Meta Ads — desarrollo web', payment_method: 'TARJETA', status: 'VALIDADO' }),
@@ -39,3 +40,5 @@ export const SEED_MOVEMENTS: DbMovement[] = [
   // Mal clasificado a propósito: compartido en una unidad → control REVISAR CORP (no alimenta reportes)
   m(16, { ...base, movement_date: '2026-10-06', record_type: 'COSTO_RECONOCIDO', amount: 90,   business_unit_id: 2, area_id: 3,  responsible: 'ADMINISTRACIÓN', cost_category_id: 3,  expense_class: 'COMPARTIDO', counterparty: 'ZOOM', detail: 'Videollamadas (revisar beneficiario)', status: 'VALIDADO' }),
 ];
+
+export const SEED_MOVEMENTS: typeof BASE_SEED_MOVEMENTS = demoData ? demoData.movements : BASE_SEED_MOVEMENTS;
