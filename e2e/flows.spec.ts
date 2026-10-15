@@ -69,19 +69,34 @@ test.describe('Admin: flujos principales', () => {
     await noHorizontalScroll(page);
   });
 
-  test('registrar horas-hombre', async ({ page }) => {
+  test('registrar horas-hombre de una hora a otra, con almuerzo', async ({ page }) => {
     await go(page, 'Horas-hombre');
     await page.getByLabel('Persona').selectOption({ index: 1 });
     await page.getByLabel('Proyecto', { exact: true }).selectOption({ index: 1 });
-    await page.getByLabel('Horas').fill('3.5');
-    await page.getByLabel(/Descripción/).fill('Hora E2E');
+    await page.locator('#wh-start').fill('08:00');
+    await page.locator('#wh-end').fill('17:30');
+    await page.getByRole('button', { name: '+ Almuerzo 13:00–14:00' }).click();
+    await expect(page.getByTestId('hours-total')).toContainText('Total: 8 h 30 min');
+    await expect(page.getByTestId('hours-total')).toContainText('1 h de descanso');
+    await page.getByLabel(/¿Qué hiciste\?/).fill('Hora E2E');
     await page.getByRole('button', { name: 'Registrar horas' }).click();
-    await expect(vis(page, '3.5 h')).toBeVisible();
+    await expect(vis(page, '08:00–17:30')).toBeVisible();
+    await expect(vis(page, '8 h 30 min')).toBeVisible();
     await noHorizontalScroll(page);
   });
 
+  test('un descanso fuera del horario muestra un aviso claro', async ({ page }) => {
+    await go(page, 'Horas-hombre');
+    await page.locator('#wh-start').fill('08:00');
+    await page.locator('#wh-end').fill('12:00');
+    await page.getByRole('button', { name: '+ Agregar descanso' }).click();
+    await page.locator('#wh-b0-s').fill('12:30');
+    await page.locator('#wh-b0-e').fill('13:00');
+    await expect(page.getByTestId('hours-total')).toContainText('dentro del horario');
+  });
+
   test('recorre todas las pantallas sin desborde horizontal', async ({ page }) => {
-    for (const l of ['Ingresos y egresos', 'Clientes y Proyectos', 'Presupuesto', 'Resultados y caja', 'Kanban', 'Horas-hombre', 'Dashboard']) {
+    for (const l of ['Ingresos y egresos', 'Clientes y Proyectos', 'Presupuesto', 'Resultados y caja', 'Kanban', 'Horas-hombre', 'Equipo', 'Dashboard']) {
       await go(page, l);
       await page.waitForTimeout(300);
       await noHorizontalScroll(page);
