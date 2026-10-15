@@ -12,3 +12,13 @@ describe('format', () => {
     expect(formatDateShort(null)).toBe('—');
   });
 });
+
+describe('formatos para gráficos', () => {
+  it('monthShort y formatPenShort', async () => {
+    const { monthShort, formatPenShort } = await import('./format');
+    expect(monthShort('2026-07')).toBe('jul 26');
+    expect(formatPenShort(1250)).toBe('1.3k');
+    expect(formatPenShort(-2000)).toBe('-2k');
+    expect(formatPenShort(450)).toBe('450');
+  });
+});

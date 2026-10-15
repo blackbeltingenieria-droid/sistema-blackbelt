@@ -41,3 +41,19 @@ export function monthRange(from: string, to: string): string[] {
   }
   return out.reverse();
 }
+
+/** 'jul 26' para ejes de gráficos. */
+export function monthShort(month: string, withYear = true): string {
+  const [y, m] = month.split('-');
+  const name = MONTH_NAMES[Number(m) - 1];
+  return name ? `${name.slice(0, 3)}${withYear ? ` ${String(y).slice(2)}` : ''}` : month;
+}
+
+/** Soles abreviados para ejes: 1250 → '1.3k', -2000 → '-2k'. */
+export function formatPenShort(n: number): string {
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1000) return `${sign}${(abs / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)}k`;
+  return `${sign}${Math.round(abs)}`;
+}

@@ -2,7 +2,7 @@
 // Resultados Modelo C (contribución, margen, resultado final) y caja de un mes.
 // Todo calculado desde movimientos VALIDADO + OK; cada cifra abre su trazabilidad.
 
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -15,13 +15,19 @@ import { TraceModal } from '../movements/components/TraceModal';
 import { CashSummary } from './components/CashSummary';
 import { ReconciliationCard } from './components/ReconciliationCard';
 import { ResultsByUnit } from './components/ResultsByUnit';
+import { buildNarrative } from './domain/presentation';
 import { useMonthReport } from './hooks/useMonthReport';
 import { setOpeningCash } from './services/results-service';
+
+const ResultsCharts = lazy(() => import('./components/ResultsCharts'));
+
+type Tab = 'charts' | 'detail';
 
 export function ResultsCashPage() {
   const [month, setMonth] = useState(currentMonth());
   const { report, loading, error, refetch } = useMonthReport(month);
-  const { units } = useMovementCatalogs();
+  const { units, categories } = useMovementCatalogs();
+  const [tab, setTab] = useState<Tab>('charts');
   const [trace, setTrace] = useState<{ title: string; ids: number[] } | null>(null);
 
   const months = useMemo(() => {
@@ -64,37 +70,59 @@ export function ResultsCashPage() {
               </p>
             )}
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-              <KpiCard label="Ingresos reconocidos" value={formatPen(r.totals.income)} />
-              <KpiCard label="Contribución total" value={formatPen(r.totals.contribution)} subtext="Antes de gastos CORP" />
-              <KpiCard label="Gasto CORP compartido" value={formatPen(r.corpSharedExpense.amount)} subtext={`Sin repartir: ${formatPen(r.corpUnassigned)}`} valueColor="text-rust" />
-              <KpiCard label="Resultado consolidado" value={formatPen(r.totals.finalResult)} subtext={`Margen ${formatPct(r.totals.marginPct)}`} valueColor={r.totals.finalResult < 0 ? 'text-rust' : 'text-ink'} />
+            {(() => {
+              const n = buildNarrative(r, report.previous);
+              return (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4" data-testid="results-kpis">
+                  <KpiCard label="Ingresos reconocidos" value={formatPen(n.income.value)} delta={n.income.delta} deltaGood={n.income.goodWhen} note={n.income.phrase} />
+                  <KpiCard label="Contribución total" value={formatPen(n.contribution.value)} delta={n.contribution.delta} deltaGood={n.contribution.goodWhen} note={n.contribution.phrase} />
+                  <KpiCard label="Gasto CORP compartido" value={formatPen(n.corpExpense.value)} valueColor="text-rust" delta={n.corpExpense.delta} deltaGood={n.corpExpense.goodWhen} note={n.corpExpense.phrase} />
+                  <KpiCard label="Resultado consolidado" value={formatPen(n.finalResult.value)} valueColor={n.finalResult.value < 0 ? 'text-rust' : 'text-ink'} delta={n.finalResult.delta} deltaGood={n.finalResult.goodWhen} note={n.finalResult.phrase} subtext={`Margen ${formatPct(r.totals.marginPct)}`} />
+                </div>
+              );
+            })()}
+
+            <div role="tablist" aria-label="Vista de resultados" className="flex gap-1 mb-4 border-b border-line">
+              {([['charts', 'Gráficos'], ['detail', 'Detalle']] as [Tab, string][]).map(([id, label]) => (
+                <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
+                  className={`min-h-[44px] px-4 bb-body text-sm -mb-px border-b-2 ${tab === id ? 'border-gold text-ink font-semibold' : 'border-transparent text-ink-soft hover:text-ink'}`}>
+                  {label}
+                </button>
+              ))}
             </div>
 
-            <h2 className="bb-display font-semibold text-ink text-base mb-2">Resultados por unidad</h2>
-            <div className="mb-4">
-              <ResultsByUnit units={r.units} catalog={units} onTrace={(title, ids) => setTrace({ title, ids })} />
-            </div>
+            {tab === 'charts' ? (
+              <Suspense fallback={<p className="bb-body text-ink-soft text-center py-12 text-sm">Cargando gráficos…</p>}>
+                <ResultsCharts report={report} units={units} categories={categories} onTrace={(title, ids) => setTrace({ title, ids })} />
+              </Suspense>
+            ) : (
+              <>
+                <h2 className="bb-display font-semibold text-ink text-base mb-2">Resultados por unidad</h2>
+                <div className="mb-4">
+                  <ResultsByUnit units={r.units} catalog={units} onTrace={(title, ids) => setTrace({ title, ids })} />
+                </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="space-y-4">
-                <ReconciliationCard results={r} />
-                <Card>
-                  <h2 className="bb-display font-semibold text-ink text-base mb-2">CORP sin repartir</h2>
-                  <p className="bb-mono text-xl text-ink" data-testid="corp-unassigned">{formatPen(r.corpUnassigned)}</p>
-                  <p className="bb-body text-xs text-ink-soft mt-1">
-                    {alloc?.status === 'SIN REPARTIR'
-                      ? 'Todo el gasto compartido de CORP sigue sin repartir: aún no hay reparto documentado para este mes.'
-                      : 'Parte del gasto compartido que no recibió reparto este mes.'}
-                  </p>
-                </Card>
-              </div>
-              <CashSummary
-                cash={report.cash}
-                onTrace={(title, ids) => setTrace({ title, ids })}
-                onSaveOpening={async (v) => { await setOpeningCash(v); await refetch(); }}
-              />
-            </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="space-y-4">
+                    <ReconciliationCard results={r} />
+                    <Card>
+                      <h2 className="bb-display font-semibold text-ink text-base mb-2">CORP sin repartir</h2>
+                      <p className="bb-mono text-xl text-ink" data-testid="corp-unassigned">{formatPen(r.corpUnassigned)}</p>
+                      <p className="bb-body text-xs text-ink-soft mt-1">
+                        {alloc?.status === 'SIN REPARTIR'
+                          ? 'Todo el gasto compartido de CORP sigue sin repartir: aún no hay reparto documentado para este mes.'
+                          : 'Parte del gasto compartido que no recibió reparto este mes.'}
+                      </p>
+                    </Card>
+                  </div>
+                  <CashSummary
+                    cash={report.cash}
+                    onTrace={(title, ids) => setTrace({ title, ids })}
+                    onSaveOpening={async (v) => { await setOpeningCash(v); await refetch(); }}
+                  />
+                </div>
+              </>
+            )}
           </>
         )}
       </div>
