@@ -1,276 +1,69 @@
 // features/dashboard-general/DashboardPage.tsx
-// Dashboard general: comparativo de giros + ranking de herramientas + mano de obra.
-// Reutiliza servicios existentes de finance-giros. No duplica lógica.
+// Dashboard general: indicadores del mes, comparativa de unidades y ranking de herramientas.
+// Todo se deriva de movimientos VALIDADO + OK y es trazable hasta su movement_id.
 
-import { Card } from '../../components/ui/Card';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { KpiCard } from '../../components/ui/KpiCard';
-import { DataTable, type Column } from '../../components/ui/DataTable';
-import { ScopeChip } from '../finance-giros/components/ScopeChip';
-import { UnitBadge } from '../catalogs/components/UnitBadge';
+import { MonthSelect } from '../../components/ui/MonthSelect';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { currentMonth, formatPen, monthRange } from '../../lib/format';
+import { TraceModal } from '../movements/components/TraceModal';
+import { ToolRankingCard } from './components/ToolRankingCard';
+import { UnitComparison } from './components/UnitComparison';
 import { useDashboardData } from './hooks/useDashboardData';
-import type { LaborCostByUnit, ToolSpendRank } from '../finance-giros/types';
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN', minimumFractionDigits: 2 }).format(n);
-
-// ─── Barra horizontal proporcional ───────────────────────────────────────────
-// Construida con tokens del design system, sin librería de gráficos externa.
-const BELT_COLORS = ['#15130F', '#C9742E', '#D8B13A', '#6E8B55', '#55504A'];
-
-function HorizontalBar({ value, max, color }: { value: number; max: number; color?: string }) {
-  const pct = max > 0 ? (value / max) * 100 : 0;
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex-1 h-3 bg-line rounded-full overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, backgroundColor: color || '#15130F' }}
-        />
-      </div>
-      <span className="bb-mono text-xs text-ink w-24 sm:w-28 text-right shrink-0">{fmt(value)}</span>
-    </div>
-  );
-}
-
-// ─── Columnas para la DataTable de herramientas ───────────────────────────────
-const TOOL_COLS: Column<ToolSpendRank>[] = [
-  {
-    key: 'rank',
-    header: '#',
-    mobile: 'hidden', // en tarjeta el puesto se muestra junto al nombre (ver columna "name")
-    render: (_r, idx) => (
-      <span className="bb-mono text-xs text-ink-soft font-bold">{(idx ?? 0) + 1}</span>
-    ),
-    className: 'w-8',
-  },
-  {
-    key: 'name',
-    header: 'Herramienta',
-    mobile: 'title',
-    render: (r, idx) => (
-      <div>
-        <p className="bb-body text-sm font-medium text-ink">
-          <span className="md:hidden bb-mono text-xs font-bold text-ink-soft mr-1.5">#{(idx ?? 0) + 1}</span>
-          {r.toolName}
-        </p>
-        <p className="bb-body text-xs text-ink-soft mt-0.5">
-          {r.impactedUnitNames.map((n) => n.split(' ')[0]).join(' · ')}
-        </p>
-      </div>
-    ),
-  },
-  {
-    key: 'scope',
-    header: 'Alcance',
-    mobile: 'key',
-    render: (r) => <ScopeChip scope={r.scope} />,
-    className: 'whitespace-nowrap',
-  },
-  {
-    key: 'count',
-    header: 'Movimientos',
-    mobile: 'key',
-    className: 'text-right',
-    render: (r) => (
-      <span className="bb-mono text-sm text-ink-soft">{r.transactionCount}</span>
-    ),
-  },
-  {
-    key: 'total',
-    header: 'Gasto acumulado',
-    mobile: 'highlight',
-    className: 'text-right',
-    render: (r) => <span className="bb-mono text-sm font-semibold text-rust">{fmt(r.totalSpend)}</span>,
-  },
-];
-
-// ─── Columnas para la DataTable de mano de obra ───────────────────────────────
-const LABOR_COLS: Column<LaborCostByUnit>[] = [
-  {
-    key: 'unit',
-    header: 'Giro de negocio',
-    mobile: 'title',
-    render: (r) => <span className="bb-body text-sm text-ink">{r.businessUnitName}</span>,
-  },
-  {
-    key: 'pct',
-    header: '% del total',
-    mobile: 'key',
-    className: 'w-48',
-    render: (r) => (
-      <div className="flex items-center gap-2">
-        <div className="flex-1 h-2 bg-line rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full"
-            style={{ width: `${r.pctOfTotalLabor}%`, backgroundColor: '#15130F' }}
-          />
-        </div>
-        <span className="bb-mono text-xs text-ink-soft w-10 text-right">
-          {r.pctOfTotalLabor.toFixed(0)}%
-        </span>
-      </div>
-    ),
-  },
-  {
-    key: 'cost',
-    header: 'Mano de obra prorrateada',
-    mobile: 'highlight',
-    className: 'text-right',
-    render: (r) => (
-      <span className={`bb-mono text-sm font-medium ${r.laborCost > 0 ? 'text-rust' : 'text-ink-soft'}`}>
-        {r.laborCost > 0 ? fmt(r.laborCost) : '—'}
-      </span>
-    ),
-  },
-];
-
-// ─── Página ───────────────────────────────────────────────────────────────────
 export function DashboardPage() {
-  const { comparison, toolsRanking, laborByUnit, loading, error } = useDashboardData();
+  const [month, setMonth] = useState(currentMonth());
+  const { data, loading, error, refetch } = useDashboardData(month);
+  const [trace, setTrace] = useState<{ title: string; ids: number[] } | null>(null);
 
-  const totalSpend       = comparison.reduce((s, r) => s + r.currentPeriodTotal, 0);
-  const totalTools       = toolsRanking.reduce((s, r) => s + r.totalSpend, 0);
-  const totalLabor       = laborByUnit.reduce((s, r) => s + r.laborCost, 0);
-  const maxUnitTotal     = Math.max(...comparison.map((r) => r.currentPeriodTotal), 1);
+  const months = useMemo(() => {
+    const set = new Set(monthRange('2026-01', currentMonth()));
+    data?.report.movements.forEach((m) => m.mes && set.add(m.mes));
+    set.add(month);
+    return [...set].sort().reverse();
+  }, [data, month]);
+
+  const r = data?.report.results;
+  const cash = data?.report.cash;
 
   return (
-    <div className="bg-canvas">
+    <div className="min-h-screen bg-canvas">
       <div className="px-4 py-5 sm:px-6 lg:px-10 lg:py-9">
-
-        {/* Page header */}
-        <div className="mb-5 sm:mb-8">
-          <h1 className="bb-display font-bold text-ink text-2xl">Dashboard general</h1>
-          <p className="bb-body text-ink-soft text-sm mt-1">
-            Comparativo de los 5 giros de negocio · Período completo
-          </p>
+        <PageHeader title="Dashboard general" subtitle="Comparativo de unidades y herramientas. Cada cifra se puede rastrear hasta sus movimientos." />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          <MonthSelect id="dash-month" label="Mes de análisis" value={month} months={months} onChange={setMonth} />
         </div>
 
-        {error && (
-          <div className="mb-6 p-3 bg-rust/10 border border-rust/30 rounded-card">
-            <p className="bb-body text-rust text-sm">{error}</p>
-          </div>
-        )}
+        {error && <ErrorBanner message={error} onRetry={() => void refetch()} />}
+        {loading && !data && <p className="bb-body text-ink-soft text-center py-12 text-sm">Cargando…</p>}
 
-        {loading && (
-          <p className="bb-body text-ink-soft text-sm text-center py-20">Cargando dashboard…</p>
-        )}
-
-        {!loading && (
-          <div className="space-y-6 sm:space-y-8">
-
-            {/* ── KPI strip ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-              <KpiCard
-                label="Gasto total registrado"
-                value={fmt(totalSpend)}
-                valueColor="text-rust"
-              />
-              <KpiCard
-                label="Gasto en herramientas"
-                value={fmt(totalTools)}
-                subtext={totalSpend > 0 ? `${((totalTools / totalSpend) * 100).toFixed(0)}% del total` : undefined}
-              />
-              <KpiCard
-                label="Mano de obra total"
-                value={fmt(totalLabor)}
-                subtext={totalSpend > 0 ? `${((totalLabor / totalSpend) * 100).toFixed(0)}% del total` : undefined}
-              />
+        {data && r && cash && (
+          <>
+            {data.report.validMovementsInMonth === 0 && (
+              <p className="bb-body text-sm text-ink-soft bg-paper border border-line rounded-card px-4 py-3 mb-4" data-testid="dash-empty">
+                Aún no hay movimientos validados con control OK en este mes.{' '}
+                <Link to="/movements" className="underline underline-offset-2 text-ink">Ir a Movimientos</Link>
+              </p>
+            )}
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+              <KpiCard label="Ingresos reconocidos" value={formatPen(r.totals.income)} />
+              <KpiCard label="Contribución total" value={formatPen(r.totals.contribution)} subtext="Antes de gastos corporativos" />
+              <KpiCard label="Gastos corporativos" value={formatPen(r.corpSharedExpense.amount)} subtext={`Sin repartir: ${formatPen(r.corpUnassigned)}`} valueColor="text-rust" />
+              <KpiCard label="Resultado consolidado" value={formatPen(r.totals.finalResult)} valueColor={r.totals.finalResult < 0 ? 'text-rust' : 'text-ink'} />
+              <KpiCard label="Flujo neto del mes" value={formatPen(cash.netFlow)} subtext="Cobros + aportes − pagos − retiros" />
+              <KpiCard label="Caja acumulada" value={formatPen(cash.closingBalance)} />
             </div>
-
-            {/* ── Comparativo de giros — ranking con barras ── */}
-            <Card>
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h2 className="bb-display font-semibold text-ink text-base">
-                    Comparativo por giro de negocio
-                  </h2>
-                  <p className="bb-body text-xs text-ink-soft mt-0.5">
-                    Gasto total prorrateado · ordenado de mayor a menor
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                {comparison.map((bu, idx) => (
-                  <div key={bu.businessUnitId}>
-                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-1">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {bu.businessUnitCode ? (
-                          <UnitBadge
-                            code={bu.businessUnitCode}
-                            color={bu.businessUnitColor}
-                            showName={false}
-                            size="xs"
-                          />
-                        ) : (
-                          <span
-                            className="bb-mono text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center text-paper"
-                            style={{ backgroundColor: bu.businessUnitColor || BELT_COLORS[idx % BELT_COLORS.length] }}
-                          >
-                            {bu.rank}
-                          </span>
-                        )}
-                        <span className="bb-body text-sm text-ink font-medium">
-                          {bu.businessUnitName}
-                        </span>
-                      </div>
-                      {bu.variationPct !== null && (
-                        <span className={`bb-mono text-xs px-2 py-0.5 rounded-full ${
-                          bu.variationPct > 0
-                            ? 'bg-rust/10 text-rust'
-                            : 'bg-[#6E8B55]/10 text-[#6E8B55]'
-                        }`}>
-                          {bu.variationPct > 0 ? '↑' : '↓'} {Math.abs(bu.variationPct).toFixed(1)}%
-                        </span>
-                      )}
-                    </div>
-                    <HorizontalBar
-                      value={bu.currentPeriodTotal}
-                      max={maxUnitTotal}
-                      color={bu.businessUnitColor || BELT_COLORS[idx % BELT_COLORS.length]}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              {comparison.length === 0 && (
-                <p className="bb-body text-ink-soft text-sm text-center py-8">Sin datos</p>
-              )}
-            </Card>
-
-            {/* ── Ranking de herramientas ── */}
-            <div>
-              <h2 className="bb-display font-semibold text-ink text-base mb-4">
-                Ranking de herramientas por gasto acumulado
-              </h2>
-              <Card padding="p-0" plainBelow="md">
-                <DataTable<ToolSpendRank>
-                  columns={TOOL_COLS}
-                  rows={toolsRanking}
-                  getRowKey={(r) => r.toolId}
-                  emptyMessage="Sin herramientas con gastos registrados"
-                />
-              </Card>
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-4 items-start">
+              <UnitComparison units={r.units} catalog={data.units} onTrace={(title, ids) => setTrace({ title, ids })} />
+              <ToolRankingCard ranking={data.toolRanking} onTrace={(title, ids) => setTrace({ title, ids })} />
             </div>
-
-            {/* ── Mano de obra por giro ── */}
-            <div>
-              <h2 className="bb-display font-semibold text-ink text-base mb-4">
-                Mano de obra prorrateada por giro
-              </h2>
-              <Card padding="p-0" plainBelow="md">
-                <DataTable<LaborCostByUnit>
-                  columns={LABOR_COLS}
-                  rows={laborByUnit}
-                  getRowKey={(r) => r.businessUnitId}
-                  emptyMessage="Sin datos de mano de obra"
-                />
-              </Card>
-            </div>
-
-          </div>
+          </>
         )}
       </div>
+      {trace && data && <TraceModal title={trace.title} ids={trace.ids} movements={data.report.movements} onClose={() => setTrace(null)} />}
     </div>
   );
 }

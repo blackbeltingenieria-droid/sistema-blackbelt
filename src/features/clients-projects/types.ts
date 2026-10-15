@@ -12,10 +12,10 @@ import type {
 export type { ProjectStatus };
 
 /** Client as returned by getClients() */
-export interface Client extends DbClient {}
+export type Client = DbClient;
 
 /** Business unit (catalog Modelo C) */
-export interface BusinessUnit extends DbBusinessUnit {}
+export type BusinessUnit = DbBusinessUnit;
 
 /** Project enriched with related data and calculated saldo pendiente */
 export interface ProjectDetail {

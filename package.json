@@ -7,7 +7,13 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:demo": "vite --mode demo",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "seed:demo:clean": "tsx scripts/seed-demo.ts --clean",
+    "seed:demo:sql": "tsx scripts/seed-demo.ts --sql"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",
@@ -16,10 +22,13 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.18.4",
+    "recharts": "^2.15.0",
     "tailwindcss": "^3.4.19"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^20.19.43",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
@@ -27,8 +36,10 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.14",
     "globals": "^15.11.0",
+    "tsx": "^4.23.15",
     "typescript": "~5.6.2",
     "typescript-eslint": "^8.11.0",
-    "vite": "^5.4.10"
+    "vite": "^5.4.10",
+    "vitest": "^2.1.9"
   }
 }

@@ -2,6 +2,7 @@
 // All Supabase calls go here. Components never call supabase.from() directly.
 // Calculated values (pendingBalance, paidAmount) are computed here, never stored.
 
+import { calcBalances } from '../domain/balance';
 import { supabase } from '../../../lib/supabase';
 import type { DbClient, DbProject, DbProjectPayment } from '../../../types/database';
 import type {
@@ -28,12 +29,6 @@ function isSupabaseConfigured(): boolean {
 const sb = () => supabase as any;
 
 // ─── Helper: compute pendingBalance in the service, never as DB column ───────
-function calcBalances(project: DbProject, payments: DbProjectPayment[]) {
-  const projectPayments = payments.filter((p) => p.project_id === project.id);
-  const paidAmount = projectPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-  const pendingBalance = Number(project.contracted_amount) - paidAmount;
-  return { paidAmount, pendingBalance, payments: projectPayments };
-}
 
 // ─── getBusinessUnits ────────────────────────────────────────────────────────
 export async function getBusinessUnits(): Promise<BusinessUnit[]> {

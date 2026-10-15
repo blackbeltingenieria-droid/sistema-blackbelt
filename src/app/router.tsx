@@ -1,21 +1,18 @@
 // app/router.tsx
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { RootLayout } from './RootLayout';
+import { BudgetsAllocationPage } from '../features/budgets-allocation/BudgetsAllocationPage';
 import { ClientsProjectsPage } from '../features/clients-projects/ClientsProjectsPage';
-import { FinanceGirosPage } from '../features/finance-giros/FinanceGirosPage';
 import { DashboardPage } from '../features/dashboard-general/DashboardPage';
+import { MyDashboardPage } from '../features/dashboard-general/MyDashboardPage';
+import { KanbanHomePage } from '../features/kanban/KanbanHomePage';
+import { KanbanPage } from '../features/kanban/KanbanPage';
+import { MovementsPage } from '../features/movements/MovementsPage';
+import { ResultsCashPage } from '../features/results-cash/ResultsCashPage';
+import { UsersPage } from '../features/users/UsersPage';
+import { WorkHoursPage } from '../features/work-hours/WorkHoursPage';
 
-function Placeholder({ name }: { name: string }) {
-  return (
-    <div className="min-h-[60vh] lg:min-h-screen bg-canvas flex items-center justify-center px-4">
-      <div className="text-center">
-        <p className="bb-display font-bold text-ink text-2xl mb-2">{name}</p>
-        <p className="bb-body text-ink-soft">Módulo en construcción — próximo sprint</p>
-      </div>
-    </div>
-  );
-}
-
+// Las rutas se protegen por rol en RootLayout → RequireRole (ver features/auth/access.ts).
 export const router = createBrowserRouter([
   {
     path: '/',
@@ -23,10 +20,17 @@ export const router = createBrowserRouter([
     children: [
       { index: true,                element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard',          element: <DashboardPage /> },
+      { path: 'my',                 element: <MyDashboardPage /> },
       { path: 'clients-projects',   element: <ClientsProjectsPage /> },
-      { path: 'finance',            element: <FinanceGirosPage /> },
-      { path: 'kanban',             element: <Placeholder name="Kanban" /> },
-      { path: 'work-hours',         element: <Placeholder name="Horas-hombre" /> },
+      { path: 'movements',          element: <MovementsPage /> },
+      { path: 'finance',            element: <Navigate to="/movements" replace /> },
+      { path: 'budgets',            element: <BudgetsAllocationPage /> },
+      { path: 'results-cash',       element: <ResultsCashPage /> },
+      { path: 'kanban',             element: <KanbanHomePage /> },
+      { path: 'kanban/:projectId',  element: <KanbanPage /> },
+      { path: 'users',              element: <UsersPage /> },
+      { path: 'work-hours',         element: <WorkHoursPage /> },
+      { path: '*',                  element: <Navigate to="/" replace /> },
     ],
   },
 ]);

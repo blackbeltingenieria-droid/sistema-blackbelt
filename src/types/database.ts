@@ -166,6 +166,177 @@ export interface DbTransactionAllocation {
   pct: number;
 }
 
+// ─── Kanban/Scrum: specialists, sprints, tasks ───────────────────────────────
+export interface DbSpecialist {
+  id: number;
+  full_name: string;
+  email?: string | null;
+  specialty?: string | null;
+  active: boolean;
+  created_at?: string;
+}
+
+export const SPRINT_STATUS = {
+  PLANIFICADO: 'planificado',
+  ACTIVO:      'activo',
+  CERRADO:     'cerrado',
+} as const;
+
+export type SprintStatus = (typeof SPRINT_STATUS)[keyof typeof SPRINT_STATUS];
+
+export interface DbSprint {
+  id: number;
+  project_id: number;
+  name: string;
+  goal: string | null;
+  start_date: string | null;   // date → ISO string
+  end_date: string | null;
+  status: SprintStatus;
+  created_at?: string;
+}
+
+// Estados de tarea = motivo belt-stripe oficial (mismos valores que StatusChip)
+export const TASK_STATUS = {
+  BACKLOG:     'backlog',
+  POR_HACER:   'por_hacer',
+  EN_CURSO:    'en_curso',
+  EN_REVISION: 'en_revision',
+  HECHO:       'hecho',
+} as const;
+
+export type TaskStatus = (typeof TASK_STATUS)[keyof typeof TASK_STATUS];
+
+export interface DbTask {
+  id: number;
+  project_id: number;
+  sprint_id: number | null;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  assignee_id: number | null;  // FK a specialists
+  due_date: string | null;
+  created_at?: string;
+  updated_at?: string | null;
+}
+
+// ─── 06_MOVIMIENTOS: movements (libro único — tabla central del Modelo C) ─────
+// `mes` y `control` NO son columnas: se calculan en el dominio (ver features/movements/domain).
+export const RECORD_TYPE = {
+  INGRESO_RECONOCIDO: 'INGRESO_RECONOCIDO',
+  COSTO_RECONOCIDO:   'COSTO_RECONOCIDO',
+  COBRO:              'COBRO',
+  PAGO:               'PAGO',
+  APORTE_SOCIO:       'APORTE_SOCIO',
+  RETIRO_SOCIO:       'RETIRO_SOCIO',
+  COMPRA_ACTIVO:      'COMPRA_ACTIVO',
+} as const;
+
+export type RecordType = (typeof RECORD_TYPE)[keyof typeof RECORD_TYPE];
+
+export const EXPENSE_CLASS = {
+  DIRECTO:    'DIRECTO',
+  ATRIBUIBLE: 'ATRIBUIBLE',
+  COMPARTIDO: 'COMPARTIDO',
+  NO_APLICA:  'NO_APLICA',
+} as const;
+
+export type ExpenseClass = (typeof EXPENSE_CLASS)[keyof typeof EXPENSE_CLASS];
+
+export const MOVEMENT_STATUS = {
+  BORRADOR: 'BORRADOR',
+  VALIDADO: 'VALIDADO',
+} as const;
+
+export type MovementStatus = (typeof MOVEMENT_STATUS)[keyof typeof MOVEMENT_STATUS];
+
+export interface DbMovement {
+  id: number;
+  movement_code: string;            // ID movimiento visible: MOV-AAAA-NNNN (trazabilidad)
+  movement_date: string;            // date → ISO string
+  record_type: RecordType;
+  amount: number;                   // Importe (S/), siempre > 0
+  business_unit_id: number;         // unidad BENEFICIARIA (default CORP)
+  area_id: number;                  // área GESTORA (≠ beneficiaria)
+  responsible: string | null;
+  cost_category_id: number;
+  expense_class: ExpenseClass;
+  project_id: number | null;
+  counterparty: string | null;      // tercero / proveedor
+  detail: string | null;            // detalle / concepto
+  payment_method: string | null;
+  voucher_number: string | null;
+  status: MovementStatus;
+  notes: string | null;
+  created_at?: string;
+  updated_at?: string | null;
+}
+
+// ─── 07_PRESUPUESTOS: budgets (una fila por mes + unidad + área + categoría) ──
+export interface DbBudget {
+  id: number;
+  month: string;                    // 'AAAA-MM'
+  business_unit_id: number;
+  area_id: number;
+  cost_category_id: number;
+  income_target: number;
+  cost_target: number;
+  comment: string | null;
+}
+
+// ─── 08_REPARTO: corp_allocation (mes → % por UN01–UN05; 0 = sin repartir) ────
+export interface DbCorpAllocation {
+  id: number;
+  month: string;                    // 'AAAA-MM'
+  business_unit_id: number;         // solo UN01–UN05 (nunca CORP)
+  pct: number;                      // porcentaje 0–100
+  note: string | null;              // criterio documentado
+}
+
+// ─── Configuración (saldo inicial de caja del Modelo C) ──────────────────────
+export const SETTING_KEY = {
+  OPENING_CASH: 'opening_cash',
+} as const;
+
+export interface DbAppSetting {
+  key: string;
+  value: string;
+}
+
+// ─── Roles y usuarios ────────────────────────────────────────────────────────
+export const ROLE_CODE = {
+  ADMIN:       'admin',
+  COLABORADOR: 'colaborador',
+} as const;
+
+export type RoleCode = (typeof ROLE_CODE)[keyof typeof ROLE_CODE];
+
+export interface DbRole {
+  id: number;
+  code: RoleCode;
+  name: string;
+}
+
+export interface DbUser {
+  id: number;
+  email: string;
+  full_name: string;
+  role_id: number;
+  specialist_id: number | null;     // vínculo con el especialista (Kanban / horas propias)
+  active: boolean;
+}
+
+// ─── Horas-hombre: work_hours ────────────────────────────────────────────────
+export interface DbWorkHour {
+  id: number;
+  specialist_id: number;            // persona
+  project_id: number;
+  task_id: number | null;
+  work_date: string;                // date → ISO string
+  hours: number;                    // 0 < horas ≤ 24
+  description: string | null;
+  created_at?: string;
+}
+
 // ─── Database shape for supabase-js generic typing ──────────────────────────
 export interface Database {
   public: {
@@ -219,6 +390,56 @@ export interface Database {
         Row: DbTransactionAllocation;
         Insert: Omit<DbTransactionAllocation, 'id'> & { id?: number };
         Update: Partial<DbTransactionAllocation>;
+      };
+      specialists: {
+        Row: DbSpecialist;
+        Insert: Omit<DbSpecialist, 'id'> & { id?: number };
+        Update: Partial<DbSpecialist>;
+      };
+      sprints: {
+        Row: DbSprint;
+        Insert: Omit<DbSprint, 'id'> & { id?: number };
+        Update: Partial<DbSprint>;
+      };
+      tasks: {
+        Row: DbTask;
+        Insert: Omit<DbTask, 'id'> & { id?: number };
+        Update: Partial<DbTask>;
+      };
+      movements: {
+        Row: DbMovement;
+        Insert: Omit<DbMovement, 'id'> & { id?: number };
+        Update: Partial<DbMovement>;
+      };
+      budgets: {
+        Row: DbBudget;
+        Insert: Omit<DbBudget, 'id'> & { id?: number };
+        Update: Partial<DbBudget>;
+      };
+      corp_allocation: {
+        Row: DbCorpAllocation;
+        Insert: Omit<DbCorpAllocation, 'id'> & { id?: number };
+        Update: Partial<DbCorpAllocation>;
+      };
+      app_settings: {
+        Row: DbAppSetting;
+        Insert: DbAppSetting;
+        Update: Partial<DbAppSetting>;
+      };
+      roles: {
+        Row: DbRole;
+        Insert: Omit<DbRole, 'id'> & { id?: number };
+        Update: Partial<DbRole>;
+      };
+      users: {
+        Row: DbUser;
+        Insert: Omit<DbUser, 'id'> & { id?: number };
+        Update: Partial<DbUser>;
+      };
+      work_hours: {
+        Row: DbWorkHour;
+        Insert: Omit<DbWorkHour, 'id'> & { id?: number };
+        Update: Partial<DbWorkHour>;
       };
     };
   };
