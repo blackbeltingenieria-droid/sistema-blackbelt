@@ -52,6 +52,7 @@ test.describe('Admin: flujos principales', () => {
 
     // Se refleja en Resultados y caja
     await go(page, 'Resultados y caja');
+    await page.getByRole('tab', { name: 'Detalle' }).click();
     await expect(page.getByTestId('cash-closing')).toBeVisible();
     await expect(page.getByTestId('reconciliation-status')).toBeVisible();
     await noHorizontalScroll(page);
