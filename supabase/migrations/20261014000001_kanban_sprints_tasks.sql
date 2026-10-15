@@ -47,7 +47,7 @@ BEGIN
   IF NOT ya_existia THEN
     -- Responsables ya presentes como "manager" en los proyectos del Modelo C
     INSERT INTO specialists (id, full_name, specialty) VALUES
-      (1, 'Henry Torres Rivera', 'Dirección general'),
+      (1, 'Henry Torres Rivera', 'Gerente general'),
       (2, 'Juan Pérez Vásquez',  'Transformación digital'),
       (3, 'Marco Guzmán',        'Geofísica y suelos'),
       (4, 'Sofía Castro',        'Incubación y emprendimiento');

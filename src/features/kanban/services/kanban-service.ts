@@ -118,7 +118,9 @@ export async function getSprints(projectId: number): Promise<Sprint[]> {
 }
 
 export async function getSpecialists(): Promise<Specialist[]> {
-  if (!isSupabaseConfigured()) return SEED_SPECIALISTS;
+  if (!isSupabaseConfigured()) {
+    return SEED_SPECIALISTS.filter((s) => s.active).sort((a, b) => a.full_name.localeCompare(b.full_name)).map((s) => ({ ...s }));
+  }
 
   const { data, error } = await sb().from('specialists').select('*').eq('active', true).order('full_name');
   if (error) throw toError('getSpecialists', error);
@@ -213,4 +215,73 @@ export async function createSprint(payload: CreateSprintPayload): Promise<Sprint
   const { data, error } = await sb().from('sprints').insert(row).select('*').single();
   if (error) throw toError('createSprint', error);
   return data as Sprint;
+}
+
+// ─── Especialistas: alta, edición y baja (pantalla Equipo) ───────────────────
+export interface SpecialistPayload {
+  full_name: string;
+  specialty: string | null;
+  email: string | null;
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function validateSpecialist(p: SpecialistPayload, others: Specialist[]): string | null {
+  const name = p.full_name.trim();
+  if (!name) return 'Escribe el nombre de la persona.';
+  if (p.email && !EMAIL_RE.test(p.email.trim())) return 'El correo no es válido.';
+  if (others.some((o) => o.active && o.full_name.trim().toLowerCase() === name.toLowerCase())) return 'Ya hay un especialista activo con ese nombre.';
+  return null;
+}
+
+const clean = (p: SpecialistPayload) => ({
+  full_name: p.full_name.trim(),
+  specialty: p.specialty?.trim() || null,
+  email: p.email?.trim() || null,
+});
+
+/** Todos los especialistas, activos e inactivos (para la pantalla Equipo). */
+export async function getAllSpecialists(): Promise<Specialist[]> {
+  if (!isSupabaseConfigured()) return [...SEED_SPECIALISTS].sort((a, b) => a.full_name.localeCompare(b.full_name)).map((s) => ({ ...s }));
+  const { data, error } = await sb().from('specialists').select('*').order('full_name');
+  if (error) throw toError('getAllSpecialists', error);
+  return (data ?? []) as Specialist[];
+}
+
+export async function createSpecialist(payload: SpecialistPayload): Promise<Specialist> {
+  const problem = validateSpecialist(payload, await getAllSpecialists());
+  if (problem) throw new Error(problem);
+  if (!isSupabaseConfigured()) {
+    const row: Specialist = { id: SEED_SPECIALISTS.reduce((m, s) => Math.max(m, s.id), 0) + 1, ...clean(payload), active: true };
+    SEED_SPECIALISTS.push(row);
+    return { ...row };
+  }
+  const { data, error } = await sb().from('specialists').insert({ ...clean(payload), active: true }).select('*').single();
+  if (error) throw toError('createSpecialist', error);
+  return data as Specialist;
+}
+
+export async function updateSpecialist(id: number, payload: SpecialistPayload): Promise<void> {
+  const problem = validateSpecialist(payload, (await getAllSpecialists()).filter((s) => s.id !== id));
+  if (problem) throw new Error(problem);
+  if (!isSupabaseConfigured()) {
+    const s = SEED_SPECIALISTS.find((x) => x.id === id);
+    if (!s) throw new Error('Especialista no encontrado.');
+    Object.assign(s, clean(payload));
+    return;
+  }
+  const { error } = await sb().from('specialists').update(clean(payload)).eq('id', id);
+  if (error) throw toError('updateSpecialist', error);
+}
+
+/** Desactivar no borra: sus horas y tareas pasadas se conservan; solo deja de aparecer para asignar. */
+export async function setSpecialistActive(id: number, active: boolean): Promise<void> {
+  if (!isSupabaseConfigured()) {
+    const s = SEED_SPECIALISTS.find((x) => x.id === id);
+    if (!s) throw new Error('Especialista no encontrado.');
+    s.active = active;
+    return;
+  }
+  const { error } = await sb().from('specialists').update({ active }).eq('id', id);
+  if (error) throw toError('setSpecialistActive', error);
 }

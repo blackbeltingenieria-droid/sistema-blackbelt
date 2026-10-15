@@ -15,6 +15,7 @@ import { HoursForm } from './components/HoursForm';
 import { ProjectHoursSummary } from './components/ProjectHoursSummary';
 import { summarizeHoursByProject, totalHours } from './hours-summary';
 import { useWorkHours } from './hooks/useWorkHours';
+import { formatDuration } from './time-range';
 import { createWorkHour, deleteWorkHour, type WorkHourPayload } from './services/work-hours-service';
 
 export function WorkHoursPage() {
@@ -47,7 +48,16 @@ export function WorkHoursPage() {
     { key: 'who', header: 'Persona', mobile: 'key', render: (r) => <span className="bb-body text-sm text-ink">{name(r.specialist_id)}</span> },
     { key: 'proj', header: 'Proyecto', mobile: 'key', render: (r) => <span className="bb-mono text-xs text-ink">{project(r.project_id)?.code ?? `#${r.project_id}`}</span> },
     { key: 'desc', header: 'Descripción', mobile: 'detail', render: (r) => <span className="bb-body text-xs text-ink-soft">{r.description ?? '—'}</span> },
-    { key: 'hours', header: 'Horas', mobile: 'highlight', className: 'text-right', render: (r) => <span className="bb-mono text-sm font-medium text-ink">{r.hours} h</span> },
+    {
+      key: 'range', header: 'Horario', mobile: 'key',
+      render: (r) => r.start_time && r.end_time ? (
+        <span className="bb-mono text-xs text-ink whitespace-nowrap">
+          {r.start_time}–{r.end_time}
+          {r.break_minutes ? <span className="block bb-body text-[11px] text-ink-soft">descanso {formatDuration(r.break_minutes)}</span> : null}
+        </span>
+      ) : <span className="bb-body text-xs text-ink-soft">—</span>,
+    },
+    { key: 'hours', header: 'Horas', mobile: 'highlight', className: 'text-right', render: (r) => <span className="bb-mono text-sm font-medium text-ink whitespace-nowrap">{formatDuration(r.hours * 60)}</span> },
     {
       key: 'act', header: 'Acciones', mobile: 'action',
       render: (r) => (
@@ -60,7 +70,7 @@ export function WorkHoursPage() {
   return (
     <div className="min-h-screen bg-canvas">
       <div className="px-4 py-5 sm:px-6 lg:px-10 lg:py-9">
-        <PageHeader title="Horas-hombre" subtitle="Registra horas por persona, proyecto y tarea." />
+        <PageHeader title="Horas-hombre" subtitle="Registra de qué hora a qué hora trabajaste y tus descansos; las horas se calculan solas." />
         {error && <ErrorBanner message={error} onRetry={() => void refetch()} />}
         {actionError && <ErrorBanner message={actionError} onClose={() => setActionError(null)} />}
 

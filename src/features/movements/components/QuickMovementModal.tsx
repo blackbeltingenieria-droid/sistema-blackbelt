@@ -1,0 +1,296 @@
+// features/movements/components/QuickMovementModal.tsx
+// Registro rápido: Ingreso o Egreso, monto, qué fue y si ya se pagó. Todo lo demás es opcional
+// y se completa solo (unidad, área, categoría, clase). Traducción a Modelo C en domain/quick-entry.ts.
+
+import { type FormEvent, useMemo, useState } from 'react';
+import { ModalShell } from '../../../components/ui/ModalShell';
+import { formatPen } from '../../../lib/format';
+import type { ProjectRow } from '../../clients-projects/types';
+import {
+  CATEGORY_SHORT, EXPENSE_CATEGORY_CODES, PAYMENT_METHODS, resolveUnit, suggestCategoryCode, validateQuick,
+  type QuickCatalogs, type QuickEntryInput, type QuickKind,
+} from '../domain/quick-entry';
+import { CORP_CODE } from '../domain/movement-rules';
+
+interface QuickMovementModalProps {
+  catalogs: QuickCatalogs;
+  initial?: QuickEntryInput;
+  editingCode?: string;
+  onSubmit: (input: QuickEntryInput) => Promise<void>;
+  onClose: () => void;
+  onAdvanced?: () => void;
+  /** Solo al editar: elimina el registro (y su cobro/pago). */
+  onDelete?: () => Promise<void>;
+}
+
+const FORM_ID = 'quick-movement-form';
+const today = () => new Date().toISOString().slice(0, 10);
+
+const chip = (active: boolean) =>
+  `px-3 py-2 min-h-[40px] rounded-card border bb-body text-sm text-left transition-colors ${
+    active ? 'border-ink bg-ink text-paper' : 'border-line bg-paper text-ink hover:border-ink-soft'
+  }`;
+
+export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, onClose, onAdvanced, onDelete }: QuickMovementModalProps) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [v, setV] = useState<QuickEntryInput>(
+    () => initial ?? {
+      kind: 'EGRESO', date: today(), amount: 0, concept: '', settled: true, paymentMethod: null,
+      counterparty: null, unitId: null, projectId: null, categoryId: null,
+    },
+  );
+  const [amountText, setAmountText] = useState(initial ? String(initial.amount) : '');
+  const [showMore, setShowMore] = useState(Boolean(initial && (initial.unitId || initial.projectId || initial.counterparty)));
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [touched, setTouched] = useState(false);
+
+  const isIncome = v.kind === 'INGRESO';
+  const errors = validateQuick(v, catalogs);
+  const commercialUnits = catalogs.units.filter((u) => u.code !== CORP_CODE);
+  const expenseCategories = catalogs.categories.filter((c) => EXPENSE_CATEGORY_CODES.includes(c.code));
+  const project: ProjectRow | undefined = v.projectId ? catalogs.projects.find((p) => p.id === v.projectId) : undefined;
+  const unit = resolveUnit(v, catalogs);
+
+  const suggested = useMemo(() => suggestCategoryCode(v.concept), [v.concept]);
+  const chosenCategory = v.categoryId ? catalogs.categories.find((c) => c.id === v.categoryId) : undefined;
+  const categoryCode = chosenCategory?.code ?? suggested ?? 'OTR';
+
+  const patch = (changes: Partial<QuickEntryInput>) => setV((prev) => ({ ...prev, ...changes }));
+  const setKind = (kind: QuickKind) => patch({ kind, categoryId: null });
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setTouched(true);
+    setError(null);
+    const first = Object.values(errors)[0];
+    if (first) { setError(first); if (errors.unit) setShowMore(true); return; }
+    setSubmitting(true);
+    try {
+      await onSubmit(v);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo guardar.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const who = isIncome
+    ? (unit && unit.code !== CORP_CODE ? unit.name : 'falta elegir la unidad')
+    : (unit && unit.code !== CORP_CODE ? unit.name : 'toda la empresa');
+  const summary = `${isIncome ? 'Ingreso' : 'Egreso'} de ${v.amount > 0 ? formatPen(v.amount) : 'S/ —'} · ${who}${
+    isIncome ? '' : ` · ${CATEGORY_SHORT[categoryCode] ?? 'Otros'}`
+  }${project ? ` · ${project.code ?? project.projectName}` : ''} · ${
+    v.settled ? (isIncome ? 'ya cobrado' : 'ya pagado') : (isIncome ? 'por cobrar' : 'por pagar')
+  }`;
+
+  return (
+    <ModalShell
+      title={editingCode ? 'Editar registro' : 'Registrar'}
+      subtitle={editingCode ?? '¿Entró o salió dinero?'}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" onClick={onClose} disabled={submitting}
+            className="flex-1 min-h-[44px] sm:min-h-0 py-2.5 border border-line rounded-card bb-body text-sm text-ink-soft hover:text-ink">
+            Cancelar
+          </button>
+          <button type="submit" form={FORM_ID} disabled={submitting}
+            className="flex-1 min-h-[44px] sm:min-h-0 py-2.5 bg-gold text-ink rounded-card bb-body text-sm font-semibold hover:bg-gold/90 disabled:opacity-50">
+            {submitting ? 'Guardando…' : 'Guardar'}
+          </button>
+        </>
+      }
+    >
+      <form id={FORM_ID} onSubmit={handleSubmit} className="space-y-5" noValidate>
+        {/* 1. Tipo */}
+        <div className="grid grid-cols-2 gap-2" role="group" aria-label="Tipo de registro">
+          {(['INGRESO', 'EGRESO'] as const).map((k) => {
+            const active = v.kind === k;
+            const color = k === 'INGRESO' ? 'border-belt-en_revision bg-belt-en_revision' : 'border-rust bg-rust';
+            return (
+              <button key={k} type="button" aria-pressed={active} data-testid={`quick-kind-${k.toLowerCase()}`}
+                onClick={() => setKind(k)}
+                className={`min-h-[56px] rounded-card border-2 px-3 py-2 text-left transition-colors ${active ? `${color} text-paper` : 'border-line bg-paper text-ink'}`}>
+                <span className="block bb-display text-base font-semibold">{k === 'INGRESO' ? '↑ Ingreso' : '↓ Egreso'}</span>
+                <span className={`block bb-body text-xs ${active ? 'text-paper' : 'text-ink-soft'}`}>
+                  {k === 'INGRESO' ? 'Entró dinero / vendí' : 'Salió dinero / gasté'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 2. Monto y fecha */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="bb-label" htmlFor="q-amount">Monto (S/)</label>
+            <input id="q-amount" className="bb-input bb-mono text-lg" inputMode="decimal" placeholder="0.00" autoFocus
+              value={amountText}
+              onChange={(e) => { setAmountText(e.target.value); patch({ amount: Number(e.target.value.replace(',', '.')) }); }} />
+            {touched && errors.amount && <p className="bb-body text-xs text-rust mt-1">{errors.amount}</p>}
+          </div>
+          <div>
+            <label className="bb-label" htmlFor="q-date">Fecha</label>
+            <input id="q-date" type="date" className="bb-input" value={v.date} onChange={(e) => patch({ date: e.target.value })} />
+          </div>
+        </div>
+
+        {/* 3. Qué fue */}
+        <div>
+          <label className="bb-label" htmlFor="q-concept">¿Qué fue?</label>
+          <input id="q-concept" className="bb-input" value={v.concept}
+            placeholder={isIncome ? 'Ej.: Cuota del cliente por la tesis' : 'Ej.: Bitel, Canva, pago a especialista'}
+            onChange={(e) => patch({ concept: e.target.value })} />
+          {touched && errors.concept && <p className="bb-body text-xs text-rust mt-1">{errors.concept}</p>}
+          {!isIncome && v.concept.trim() && !v.categoryId && (
+            <p className="bb-body text-xs text-ink-soft mt-1" data-testid="quick-suggestion">
+              Se guardará en: <strong className="text-ink">{CATEGORY_SHORT[categoryCode]}</strong>
+              {suggested ? '' : ' (puedes elegir otra abajo)'}
+            </p>
+          )}
+        </div>
+
+        {/* 4. Unidad (obligatoria solo para ingresos) */}
+        {isIncome && (
+          <div>
+            <p className="bb-label">¿Qué unidad vendió?</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {commercialUnits.map((u) => (
+                <button key={u.id} type="button" aria-pressed={unit?.id === u.id && !v.projectId}
+                  onClick={() => patch({ unitId: u.id, projectId: null })} className={chip(unit?.id === u.id)}>
+                  <span className="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" style={{ backgroundColor: u.color }} />
+                  {u.name}
+                </button>
+              ))}
+            </div>
+            {touched && errors.unit && <p className="bb-body text-xs text-rust mt-1">{errors.unit}</p>}
+          </div>
+        )}
+
+        {/* 5. ¿Ya se pagó? */}
+        <div>
+          <p className="bb-label">{isIncome ? '¿Ya te pagaron?' : '¿Ya lo pagaste?'}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" aria-pressed={v.settled} onClick={() => patch({ settled: true })} className={chip(v.settled)}>
+              Sí, {isIncome ? 'ya entró el dinero' : 'ya salió el dinero'}
+            </button>
+            <button type="button" aria-pressed={!v.settled} onClick={() => patch({ settled: false })} className={chip(!v.settled)}>
+              No, {isIncome ? 'me deben' : 'lo debo'}
+            </button>
+          </div>
+        </div>
+
+        {/* 6. Medio de pago (opcional) */}
+        {v.settled && (
+          <div>
+            <p className="bb-label">Medio de pago <span className="text-ink-soft font-normal">— opcional</span></p>
+            <div className="flex flex-wrap gap-2">
+              {PAYMENT_METHODS.map((m) => (
+                <button key={m} type="button" aria-pressed={v.paymentMethod === m}
+                  onClick={() => patch({ paymentMethod: v.paymentMethod === m ? null : m })} className={chip(v.paymentMethod === m)}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 7. Clasificar (opcional) */}
+        <div className="border-t border-line pt-4">
+          <button type="button" onClick={() => setShowMore((s) => !s)} aria-expanded={showMore}
+            className="bb-body text-sm font-semibold text-ink underline underline-offset-4" data-testid="quick-more">
+            {showMore ? '− Ocultar detalles' : '+ Más detalles (opcional)'}
+          </button>
+          {showMore && (
+            <div className="space-y-4 mt-4">
+              {!isIncome && (
+                <div>
+                  <p className="bb-label">¿Para quién es el gasto?</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button type="button" aria-pressed={!v.unitId && !v.projectId} onClick={() => patch({ unitId: null, projectId: null })}
+                      className={chip(!v.unitId && !v.projectId)}>
+                      Toda la empresa
+                    </button>
+                    {commercialUnits.map((u) => (
+                      <button key={u.id} type="button" aria-pressed={v.unitId === u.id && !v.projectId}
+                        onClick={() => patch({ unitId: u.id, projectId: null })} className={chip(v.unitId === u.id && !v.projectId)}>
+                        <span className="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" style={{ backgroundColor: u.color }} />
+                        Solo {u.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="bb-label" htmlFor="q-project">Proyecto <span className="text-ink-soft font-normal">— opcional</span></label>
+                <select id="q-project" className="bb-input" value={v.projectId ?? ''}
+                  onChange={(e) => patch({ projectId: e.target.value ? Number(e.target.value) : null })}>
+                  <option value="">Ninguno</option>
+                  {catalogs.projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.code ?? `#${p.id}`} · {p.projectName} ({p.clientName})</option>
+                  ))}
+                </select>
+                {project && <p className="bb-body text-xs text-ink-soft mt-1">Se asigna a {project.businessUnitName}.</p>}
+              </div>
+
+              {!isIncome && (
+                <div>
+                  <p className="bb-label">¿En qué se gastó?</p>
+                  <div className="flex flex-wrap gap-2">
+                    {expenseCategories.map((c) => {
+                      const active = categoryCode === c.code;
+                      return (
+                        <button key={c.id} type="button" aria-pressed={active}
+                          onClick={() => patch({ categoryId: c.id })} className={chip(active)}>
+                          {CATEGORY_SHORT[c.code] ?? c.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="bb-label" htmlFor="q-cp">{isIncome ? '¿Quién pagó? (cliente)' : '¿A quién se pagó? (proveedor)'} <span className="text-ink-soft font-normal">— opcional</span></label>
+                <input id="q-cp" className="bb-input" value={v.counterparty ?? ''} onChange={(e) => patch({ counterparty: e.target.value || null })} />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <p className="bb-body text-xs text-ink-soft bg-canvas rounded-card px-3 py-2" data-testid="quick-summary">{summary}</p>
+
+        {onAdvanced && !editingCode && (
+          <p className="bb-body text-xs text-ink-soft">
+            ¿Aporte o retiro de socio, o compra de un equipo?{' '}
+            <button type="button" onClick={onAdvanced} className="underline text-ink">Usa el formulario completo</button>
+          </p>
+        )}
+
+        {onDelete && (
+          <div className="border-t border-line pt-3">
+            {confirmDelete ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="bb-body text-sm text-ink">¿Eliminar este registro? Se quitará de todos los reportes.</span>
+                <button type="button" className="px-3 py-1.5 bg-rust text-paper rounded-card bb-body text-xs font-semibold"
+                  onClick={async () => {
+                    try { await onDelete(); onClose(); } catch (err) { setError(err instanceof Error ? err.message : 'No se pudo eliminar.'); }
+                  }}>
+                  Sí, eliminar
+                </button>
+                <button type="button" className="px-3 py-1.5 border border-line rounded-card bb-body text-xs" onClick={() => setConfirmDelete(false)}>No</button>
+              </div>
+            ) : (
+              <button type="button" className="bb-body text-xs text-rust underline" onClick={() => setConfirmDelete(true)}>Eliminar registro</button>
+            )}
+          </div>
+        )}
+
+        {error && <p role="alert" className="bb-body text-sm text-rust">{error}</p>}
+      </form>
+    </ModalShell>
+  );
+}

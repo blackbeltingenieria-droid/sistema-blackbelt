@@ -3,7 +3,7 @@ import { go, login, noHorizontalScroll } from './helpers';
 
 test.describe('Mi panel del Admin', () => {
   test('muestra el resumen de la empresa y las alertas', async ({ page }) => {
-    await login(page, 'Administración Blackbelt');
+    await login(page, 'Henry Torres');
     await go(page, 'Mi panel');
     await expect(page.getByTestId('admin-summary')).toBeVisible();
     await expect(page.getByText('Tareas abiertas del equipo')).toBeVisible();
@@ -14,17 +14,32 @@ test.describe('Mi panel del Admin', () => {
     await noHorizontalScroll(page);
   });
 
-  test('sin vínculo: el aviso trae un enlace a Usuarios; al vincular aparecen sus tareas', async ({ page }) => {
-    await login(page, 'Administración Blackbelt');
+  test('Henry Torres (Gerente General) es el primer usuario: Administrador con sus propias tareas', async ({ page }) => {
+    await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: /Henry Torres Rivera/ }).first()).toBeVisible();
+    await page.getByRole('button', { name: /Henry Torres Rivera/ }).first().click();
+    await go(page, 'Mi panel');
+    await expect(page.getByTestId('admin-summary')).toBeVisible();
+    await expect(page.getByTestId('my-work')).toBeVisible();
+    await noHorizontalScroll(page);
+  });
+
+  test('sin vínculo: el aviso trae un enlace a Equipo; al volver a vincular aparecen sus tareas', async ({ page }) => {
+    await login(page, 'Henry Torres');
+    await go(page, 'Equipo');
+    const mine = page.getByTestId('users-list').locator('li', { hasText: 'henry@demo.local' });
+    await mine.locator('select[id^="link-"]').selectOption({ label: 'Ninguno' });
+    await expect(page.getByTestId('users-msg')).toContainText('Vínculo guardado');
     await go(page, 'Mi panel');
     await expect(page.getByTestId('my-work')).toHaveCount(0);
     await page.getByTestId('link-users').click();
     await expect(page).toHaveURL(/\/users$/);
-    await page.locator('select[id^="link-"]').first().selectOption({ label: 'Henry Torres Rivera' });
+    await page.getByTestId('users-list').locator('li', { hasText: 'henry@demo.local' }).locator('select[id^="link-"]').selectOption({ label: 'Henry Torres Rivera' });
     await expect(page.getByTestId('users-msg')).toContainText('Vínculo guardado');
     await go(page, 'Mi panel');
-    await expect(page.getByTestId('admin-summary')).toBeVisible(); // el resumen sigue arriba
-    await expect(page.getByTestId('my-work')).toBeVisible();       // y sus tareas personales debajo
+    await expect(page.getByTestId('admin-summary')).toBeVisible();
+    await expect(page.getByTestId('my-work')).toBeVisible();
     await expect(page.getByTestId('not-linked')).toHaveCount(0);
     await noHorizontalScroll(page);
   });

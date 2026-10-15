@@ -18,7 +18,7 @@ const SESSION_KEY = 'bb.session.userId';
 export const BOOTSTRAP_ADMIN: AuthUser = {
   id: 0,
   email: 'admin@blackbelt.local',
-  fullName: 'Administrador (acceso inicial)',
+  fullName: 'Primer acceso (Gerente General)',
   role: ROLE_CODE.ADMIN,
   specialistId: null,
 };

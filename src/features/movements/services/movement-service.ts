@@ -10,6 +10,7 @@ import { getAreas, getBusinessUnits, getCostCategories } from '../../catalogs/se
 import { getProjectRows } from '../../clients-projects/services/project-service';
 import { enrichMovement, nextMovementCode } from '../domain/movement-rules';
 import { validateMovementForm } from '../domain/movement-validation';
+import { buildCashPair, buildMainMovement, type QuickCatalogs, type QuickEntryInput } from '../domain/quick-entry';
 import type { EnrichedMovement, MovementFormValues, MovementRow } from '../types';
 import { SEED_MOVEMENTS } from './seed-data';
 
@@ -117,4 +118,43 @@ export async function deleteMovement(id: number): Promise<void> {
   }
   const { error } = await sb().from('movements').delete().eq('id', id);
   if (error) throw new Error(`deleteMovement: ${error.message}`);
+}
+
+// ─── Registro rápido (ingreso/egreso + cobro/pago enlazado) ──────────────────
+// Usa las mismas funciones de arriba: las reglas del Modelo C no cambian.
+
+/** Crea el ingreso/gasto y, si ya se cobró/pagó, su fila de caja enlazada. */
+export async function createQuickMovement(input: QuickEntryInput, c: QuickCatalogs): Promise<DbMovement> {
+  const main = await createMovement(buildMainMovement(input, c));
+  if (input.settled) await createMovement(buildCashPair(main, main.movement_code, c));
+  return main;
+}
+
+/** Edita un evento del formulario rápido y crea, actualiza o quita su cobro/pago. */
+export async function updateQuickMovement(
+  main: Pick<DbMovement, 'id' | 'movement_code'>,
+  pair: Pick<DbMovement, 'id' | 'movement_date'> | null,
+  input: QuickEntryInput,
+  c: QuickCatalogs,
+): Promise<void> {
+  const values = buildMainMovement(input, c);
+  await updateMovement(main.id, values);
+  if (input.settled && pair) {
+    await updateMovement(pair.id, buildCashPair(values, main.movement_code, c, pair.movement_date));
+  } else if (input.settled) {
+    await createMovement(buildCashPair(values, main.movement_code, c));
+  } else if (pair) {
+    await setMovementStatus(pair.id, MOVEMENT_STATUS.BORRADOR);
+    await deleteMovement(pair.id);
+  }
+}
+
+/** Cambia el estado del evento completo (el ingreso/gasto y su cobro/pago). */
+export async function setEventStatus(ids: number[], status: MovementStatus): Promise<void> {
+  for (const id of ids) await setMovementStatus(id, status);
+}
+
+/** Elimina el evento completo; solo si está en BORRADOR (regla de protección). */
+export async function deleteEvent(ids: number[]): Promise<void> {
+  for (const id of ids) await deleteMovement(id);
 }
