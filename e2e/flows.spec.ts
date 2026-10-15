@@ -81,7 +81,7 @@ test.describe('Admin: flujos principales', () => {
   });
 
   test('recorre todas las pantallas sin desborde horizontal', async ({ page }) => {
-    for (const l of ['Ingresos y egresos', 'Clientes y Proyectos', 'Presupuestos y reparto', 'Resultados y caja', 'Kanban', 'Horas-hombre', 'Dashboard']) {
+    for (const l of ['Ingresos y egresos', 'Clientes y Proyectos', 'Presupuesto', 'Resultados y caja', 'Kanban', 'Horas-hombre', 'Dashboard']) {
       await go(page, l);
       await page.waitForTimeout(300);
       await noHorizontalScroll(page);
