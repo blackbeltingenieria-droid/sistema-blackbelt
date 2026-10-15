@@ -1,56 +1,39 @@
 // features/dashboard-general/hooks/useDashboardData.ts
-// Agrega los 3 servicios del dashboard en un solo hook coordinado.
+// Dashboard general: resultados/caja del mes + ranking de herramientas, todo derivado de movements.
 
-import { useEffect, useState } from 'react';
-import {
-  getAllBusinessUnitsComparison,
-  getToolsRankingBySpend,
-  getLaborCostByBusinessUnit,
-} from '../../finance-giros/services/finance-service';
-import type {
-  BusinessUnitComparison,
-  LaborCostByUnit,
-  ToolSpendRank,
-} from '../../finance-giros/types';
+import { useCallback, useEffect, useState } from 'react';
+import { getCostCategories } from '../../catalogs/services/catalog-service';
+import type { BusinessUnit } from '../../catalogs/types';
+import { getBusinessUnits } from '../../catalogs/services/catalog-service';
+import { getMonthReport, type MonthReport } from '../../results-cash/services/results-service';
+import { rankSoftwareTools, type ToolRank } from '../domain/tool-ranking';
 
-interface UseDashboardDataResult {
-  comparison: BusinessUnitComparison[];
-  toolsRanking: ToolSpendRank[];
-  laborByUnit: LaborCostByUnit[];
-  loading: boolean;
-  error: string | null;
+export interface DashboardData {
+  report: MonthReport;
+  units: BusinessUnit[];
+  toolRanking: ToolRank[];
 }
 
-export function useDashboardData(): UseDashboardDataResult {
-  const [comparison, setComparison]   = useState<BusinessUnitComparison[]>([]);
-  const [toolsRanking, setToolsRanking] = useState<ToolSpendRank[]>([]);
-  const [laborByUnit, setLaborByUnit]   = useState<LaborCostByUnit[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [error, setError]               = useState<string | null>(null);
+export function useDashboardData(month: string) {
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    try {
+      const [report, units, cats] = await Promise.all([getMonthReport(month), getBusinessUnits(), getCostCategories()]);
+      const softId = cats.find((c) => c.code === 'SOFT')?.id ?? -1;
+      setData({ report, units, toolRanking: rankSoftwareTools(report.movements, softId, month) });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo cargar el dashboard.');
+    } finally {
+      setLoading(false);
+    }
+  }, [month]);
 
-    Promise.all([
-      getAllBusinessUnitsComparison(),
-      getToolsRankingBySpend(),
-      getLaborCostByBusinessUnit(),
-    ])
-      .then(([comp, tools, labor]) => {
-        if (cancelled) return;
-        setComparison(comp);
-        setToolsRanking(tools);
-        setLaborByUnit(labor);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Error desconocido');
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
+  useEffect(() => { void load(); }, [load]);
 
-    return () => { cancelled = true; };
-  }, []);
-
-  return { comparison, toolsRanking, laborByUnit, loading, error };
+  return { data, loading, error, refetch: load };
 }
