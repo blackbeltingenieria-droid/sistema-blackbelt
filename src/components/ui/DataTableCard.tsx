@@ -55,7 +55,7 @@ export function DataTableCard<T>({ row, rowIndex, columns, onClick }: DataTableC
             <div className="shrink-0 text-right space-y-0.5">
               {highlights.map((c) => (
                 <div key={c.key}>
-                  <p className="bb-label-xs text-ink-soft text-[9px] mb-0.5">{c.header}</p>
+                  <p className="bb-label-xs text-ink-soft text-[9px] leading-tight mb-0.5 max-w-[7rem] ml-auto">{c.header}</p>
                   {c.render(row, rowIndex)}
                 </div>
               ))}

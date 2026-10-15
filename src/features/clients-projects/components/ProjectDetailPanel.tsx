@@ -2,6 +2,7 @@
 // Right-side detail panel showing client info, project data, payment progress.
 // Opens when a row is clicked in the listing table.
 
+import { Link } from 'react-router-dom';
 import { Card } from '../../../components/ui/Card';
 import { KpiCard } from '../../../components/ui/KpiCard';
 import { ProgressBar } from '../../../components/ui/ProgressBar';
@@ -230,16 +231,15 @@ export function ProjectDetailPanel({ projectId, onClose }: ProjectDetailPanelPro
             )}
           </Card>
 
-          {/* Link to Kanban (not built yet — per scope) */}
-          <button
-            className="w-full py-2.5 px-4 border border-line rounded-card bb-body text-sm text-ink-soft hover:bg-paper hover:text-ink transition-colors text-left flex items-center gap-2"
-            disabled
-            title="Módulo Kanban — próximo sprint"
+          {/* Acceso al tablero Kanban del proyecto */}
+          <Link
+            to={`/kanban/${projectId}`}
+            className="w-full py-2.5 px-4 min-h-[44px] border border-line rounded-card bb-body text-sm text-ink hover:bg-paper transition-colors flex items-center gap-2"
           >
             <span>🗂️</span>
             <span>Ver Kanban del proyecto</span>
-            <span className="ml-auto bb-mono text-[10px] text-ink-soft">Próximamente</span>
-          </button>
+            <span className="ml-auto text-ink-soft">→</span>
+          </Link>
         </div>
       )}
     </aside>

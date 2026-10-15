@@ -96,6 +96,7 @@ const LABOR_COLS: Column<LaborCostByUnit>[] = [
     key: 'pct',
     header: '% del total',
     mobile: 'key',
+    mobileFull: true,
     className: 'w-48',
     render: (r) => (
       <div className="flex items-center gap-2">

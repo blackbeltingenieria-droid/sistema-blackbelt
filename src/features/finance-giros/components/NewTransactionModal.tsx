@@ -72,7 +72,10 @@ export function NewTransactionModal({ onClose, onSaved, onCreated, transactionTo
     setToolId(tid);
     const tool = tools.find((t) => t.id === tid);
     if (tool) {
-      const resolved = resolveAllocationsForTool(tool, SEED_BUSINESS_UNITS.map((b) => b.id));
+      // Una herramienta "general" se reparte 20% entre las 5 unidades comerciales (UN01–UN05).
+      // CORP no es unidad comercial: incluirla sumaba 120% y bloqueaba el guardado.
+      const commercialUnitIds = SEED_BUSINESS_UNITS.filter((b) => b.code !== 'CORP').map((b) => b.id);
+      const resolved = resolveAllocationsForTool(tool, commercialUnitIds);
       setAllocations(resolved);
       setAutoAllocated(tool.scope !== 'shared'); // shared: editable por usuario
     }

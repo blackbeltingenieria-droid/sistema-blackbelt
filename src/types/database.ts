@@ -166,6 +166,59 @@ export interface DbTransactionAllocation {
   pct: number;
 }
 
+// ─── Kanban/Scrum: specialists, sprints, tasks ───────────────────────────────
+export interface DbSpecialist {
+  id: number;
+  full_name: string;
+  email?: string | null;
+  specialty?: string | null;
+  active: boolean;
+  created_at?: string;
+}
+
+export const SPRINT_STATUS = {
+  PLANIFICADO: 'planificado',
+  ACTIVO:      'activo',
+  CERRADO:     'cerrado',
+} as const;
+
+export type SprintStatus = (typeof SPRINT_STATUS)[keyof typeof SPRINT_STATUS];
+
+export interface DbSprint {
+  id: number;
+  project_id: number;
+  name: string;
+  goal: string | null;
+  start_date: string | null;   // date → ISO string
+  end_date: string | null;
+  status: SprintStatus;
+  created_at?: string;
+}
+
+// Estados de tarea = motivo belt-stripe oficial (mismos valores que StatusChip)
+export const TASK_STATUS = {
+  BACKLOG:     'backlog',
+  POR_HACER:   'por_hacer',
+  EN_CURSO:    'en_curso',
+  EN_REVISION: 'en_revision',
+  HECHO:       'hecho',
+} as const;
+
+export type TaskStatus = (typeof TASK_STATUS)[keyof typeof TASK_STATUS];
+
+export interface DbTask {
+  id: number;
+  project_id: number;
+  sprint_id: number | null;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  assignee_id: number | null;  // FK a specialists
+  due_date: string | null;
+  created_at?: string;
+  updated_at?: string | null;
+}
+
 // ─── Database shape for supabase-js generic typing ──────────────────────────
 export interface Database {
   public: {
@@ -219,6 +272,21 @@ export interface Database {
         Row: DbTransactionAllocation;
         Insert: Omit<DbTransactionAllocation, 'id'> & { id?: number };
         Update: Partial<DbTransactionAllocation>;
+      };
+      specialists: {
+        Row: DbSpecialist;
+        Insert: Omit<DbSpecialist, 'id'> & { id?: number };
+        Update: Partial<DbSpecialist>;
+      };
+      sprints: {
+        Row: DbSprint;
+        Insert: Omit<DbSprint, 'id'> & { id?: number };
+        Update: Partial<DbSprint>;
+      };
+      tasks: {
+        Row: DbTask;
+        Insert: Omit<DbTask, 'id'> & { id?: number };
+        Update: Partial<DbTask>;
       };
     };
   };
