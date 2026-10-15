@@ -22,6 +22,9 @@ const btn = 'px-3 py-1.5 min-h-[36px] border border-line rounded-card bb-body te
 const primary = 'min-h-[44px] sm:min-h-0 px-5 py-2.5 bg-gold text-ink rounded-card bb-body text-sm font-semibold hover:bg-gold/90';
 
 interface SpecialistForm { id?: number; fullName: string; specialty: string; email: string; giveAccess: boolean; role: RoleCode }
+/** Primer usuario del sistema (Gerente General). */
+const FIRST_USER_NAME = 'Henry Torres Rivera';
+
 const EMPTY_SPEC: SpecialistForm = { fullName: '', specialty: '', email: '', giveAccess: true, role: ROLE_CODE.COLABORADOR };
 
 export function UsersPage() {
@@ -34,11 +37,14 @@ export function UsersPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [specForm, setSpecForm] = useState<SpecialistForm | null>(null);
   const [access, setAccess] = useState<{ specialist: Specialist; email: string; role: RoleCode } | null>(null);
-  const [showUserForm, setShowUserForm] = useState(params.get('nuevo') === '1');
-  const [userForm, setUserForm] = useState<{ fullName: string; email: string; role: RoleCode; specialistId: number }>({
-    fullName: '', email: '', role: ROLE_CODE.ADMIN, specialistId: 0,
-  });
   const isBootstrap = me?.id === BOOTSTRAP_ADMIN.id;
+  const [showUserForm, setShowUserForm] = useState(params.get('nuevo') === '1' || isBootstrap);
+  // Primer acceso: el primer usuario es el Gerente General, Henry Torres Rivera (Administrador, vinculado a su especialista).
+  const [userForm, setUserForm] = useState<{ fullName: string; email: string; role: RoleCode; specialistId: number }>({
+    fullName: isBootstrap ? FIRST_USER_NAME : '', email: '', role: ROLE_CODE.ADMIN, specialistId: 0,
+  });
+  const firstUserSpecialist = specialists.find((s) => s.full_name.trim().toLowerCase() === FIRST_USER_NAME.toLowerCase());
+  const formSpecialistId = isBootstrap && !userForm.specialistId && firstUserSpecialist ? firstUserSpecialist.id : userForm.specialistId;
   const taken = new Set(users.filter((u) => u.specialistId).map((u) => u.specialistId));
   const userOf = (specialistId: number): UserRow | undefined => users.find((u) => u.specialistId === specialistId);
   const active = specialists.filter((s) => s.active);
@@ -97,7 +103,7 @@ export function UsersPage() {
     e.preventDefault();
     setActionError(null); setMsg(null);
     try {
-      const created = await createUser({ ...userForm, specialistId: userForm.specialistId || null });
+      const created = await createUser({ ...userForm, specialistId: formSpecialistId || null });
       await refetch();
       // Desde el acceso inicial, pasa a usar el usuario recién creado (ya vinculado).
       await refresh(isBootstrap ? created.id : undefined);
@@ -183,7 +189,7 @@ export function UsersPage() {
 
         {isBootstrap && (
           <p className="bb-body text-sm text-ink bg-paper border border-gold rounded-card px-4 py-3 mb-4" data-testid="bootstrap-note">
-            Estás con el acceso inicial. Crea tu propio usuario (abajo, en «Usuarios») y la app entrará con él.
+            Primer acceso: crea el usuario del Gerente General, <strong>{FIRST_USER_NAME}</strong> (abajo, en «Usuarios»: ya está casi lleno, solo falta su correo). Al crearlo, la app entra con él.
           </p>
         )}
 
@@ -273,7 +279,7 @@ export function UsersPage() {
                       <option value={ROLE_CODE.COLABORADOR}>Colaborador</option>
                     </select></div>
                   <div><label className="bb-label" htmlFor="u-spec">Es el especialista</label>
-                    <select id="u-spec" className="bb-input" value={userForm.specialistId} onChange={(e) => setUserForm({ ...userForm, specialistId: Number(e.target.value) })}>
+                    <select id="u-spec" className="bb-input" value={formSpecialistId} onChange={(e) => setUserForm({ ...userForm, specialistId: Number(e.target.value) })}>
                       <option value={0}>Ninguno (no tiene tareas ni horas)</option>
                       {active.map((s) => <option key={s.id} value={s.id} disabled={taken.has(s.id)}>{s.full_name}{taken.has(s.id) ? ' (ya tiene usuario)' : ''}</option>)}
                     </select></div>

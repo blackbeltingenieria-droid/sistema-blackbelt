@@ -108,7 +108,9 @@ describe('datos demo: integridad referencial', () => {
     expect(d.users.every((u) => u.specialist_id === null || specs.has(u.specialist_id))).toBe(true);
     expect(d.movements.every((m) => m.project_id === null || projects.has(m.project_id))).toBe(true);
   });
-  it('usuarios: 2 admins (uno sin vínculo, otro vinculado) y 8 colaboradores vinculados', () => {
+  it('usuarios: Henry Torres (Gerente General) primero, 1 admin sin vínculo y 8 colaboradores vinculados', () => {
+    expect(d.users[0]).toMatchObject({ full_name: 'DEMO - Henry Torres Rivera', role: 'admin', specialist_id: d.specialists[0].id });
+    expect(d.specialists[0].specialty).toBe('Gerente general');
     const admins = d.users.filter((u) => u.role === 'admin');
     expect(admins).toHaveLength(2);
     expect(admins.map((a) => a.specialist_id === null).sort()).toEqual([false, true]);

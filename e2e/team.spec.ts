@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { go, login, noHorizontalScroll } from './helpers';
 
 test.describe('Equipo: especialistas y usuarios', () => {
-  test.beforeEach(async ({ page }) => { await login(page, 'Administración Blackbelt'); });
+  test.beforeEach(async ({ page }) => { await login(page, 'Henry Torres'); });
 
   test('agregar un especialista que entra al sistema: queda con usuario vinculado y aparece en Horas', async ({ page }) => {
     await go(page, 'Equipo');

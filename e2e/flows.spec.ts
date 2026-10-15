@@ -3,7 +3,7 @@ import { go, rowOf, vis, login, noHorizontalScroll } from './helpers';
 
 test.describe('Admin: flujos principales', () => {
   test.beforeEach(async ({ page }) => {
-    await login(page, 'Administración Blackbelt');
+    await login(page, 'Henry Torres');
   });
 
   test('crear cliente + proyecto', async ({ page }) => {

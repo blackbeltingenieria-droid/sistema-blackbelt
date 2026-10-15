@@ -50,8 +50,8 @@ test.describe('Datos demo + Resultados y caja visual', () => {
     await expect(page.getByTestId('alerts')).toContainText('Reparto CORP sin definir');
   });
 
-  test('el Admin con Kanban ve su resumen y sus tareas personales', async ({ page }) => {
-    await login(page, 'Admin con Kanban');
+  test('Henry Torres (Gerente General) ve el resumen y sus tareas personales', async ({ page }) => {
+    await login(page, 'Henry Torres');
     await go(page, 'Mi panel');
     await expect(page.getByTestId('admin-summary')).toBeVisible();
     await expect(page.getByTestId('my-work')).toBeVisible();

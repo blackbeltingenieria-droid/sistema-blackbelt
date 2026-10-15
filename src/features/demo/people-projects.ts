@@ -33,7 +33,7 @@ export function buildClients(): DbClient[] {
 
 // ─── Especialistas (9: 1 dirección + 8 colaboradores) ────────────────────────
 const SPECIALIST_DEFS: [string, string][] = [
-  ['Henry Torres Rivera', 'Dirección general'], ['Juan Pérez Vásquez', 'Transformación digital'],
+  ['Henry Torres Rivera', 'Gerente general'], ['Juan Pérez Vásquez', 'Transformación digital'],
   ['Marco Guzmán León', 'Geofísica y suelos'], ['Sofía Castro Ríos', 'Incubación y emprendimiento'],
   ['Valeria Quispe Mori', 'Procesos y calidad'], ['Andrés Rojas Cano', 'Desarrollo de software'],
   ['Mónica Vega Salas', 'Investigación y tesis'], ['Luis Cárdenas Ponce', 'Datos e inteligencia de negocios'],
@@ -46,7 +46,7 @@ export function buildSpecialists(): DbSpecialist[] {
   }));
 }
 
-// ─── Usuarios: 2 admins (uno sin vínculo, otro con Kanban) + 8 colaboradores ─
+// ─── Usuarios: Henry Torres Rivera (Gerente General, primer usuario, con Kanban) + 1 admin sin vínculo + 8 colaboradores ─
 export interface DemoUserDef { id: number; email: string; full_name: string; role: RoleCode; specialist_id: number | null }
 
 export function buildUserDefs(): DemoUserDef[] {
@@ -55,8 +55,8 @@ export function buildUserDefs(): DemoUserDef[] {
     full_name: withPrefix(name), role: 'colaborador', specialist_id: id(i + 2),
   }));
   return [
-    { id: id(1), email: `admin${DEMO_EMAIL_DOMAIN}`, full_name: withPrefix('Admin General'), role: 'admin', specialist_id: null },
-    { id: id(2), email: `admin.kanban${DEMO_EMAIL_DOMAIN}`, full_name: withPrefix('Admin con Kanban'), role: 'admin', specialist_id: id(1) },
+    { id: id(1), email: `henry${DEMO_EMAIL_DOMAIN}`, full_name: withPrefix('Henry Torres Rivera'), role: 'admin', specialist_id: id(1) },
+    { id: id(2), email: `admin${DEMO_EMAIL_DOMAIN}`, full_name: withPrefix('Admin General'), role: 'admin', specialist_id: null },
     ...colabs,
   ];
 }
