@@ -17,6 +17,7 @@ import { ReconciliationCard } from './components/ReconciliationCard';
 import { ResultsByUnit } from './components/ResultsByUnit';
 import { buildNarrative } from './domain/presentation';
 import { buildBusinessSummary } from './domain/summary';
+import { buildBudgetStatus } from '../budgets-allocation/domain/budget-status';
 import { BusinessSummaryView } from './components/BusinessSummaryView';
 import { CATEGORY_SHORT } from '../movements/domain/quick-entry';
 import { useMonthReport } from './hooks/useMonthReport';
@@ -98,6 +99,10 @@ export function ResultsCashPage() {
               <BusinessSummaryView
                 mes={month}
                 pendingReview={report.pendingReview}
+                budget={buildBudgetStatus({
+                  mes: month, today: new Date().toISOString().slice(0, 10), budgets: report.budgets, movements: report.movements,
+                  units, categories, categoryName: (c, id) => (c ? CATEGORY_SHORT[c.code] ?? c.name : String(id)),
+                })}
                 onTrace={(title, ids) => setTrace({ title, ids })}
                 summary={buildBusinessSummary({
                   mes: month, results: r, previous: report.previous, cash: report.cash, movements: report.movements,

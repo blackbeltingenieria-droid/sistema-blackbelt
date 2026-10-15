@@ -12,9 +12,11 @@ interface Props {
   summary: BusinessSummary;
   pendingReview: number;
   onTrace: (title: string, ids: number[]) => void;
+  /** Aviso del presupuesto del mes (frase de "¿Cómo voy?"). */
+  budget?: { tone: 'good' | 'warn' | 'bad' | 'none'; verdict: string };
 }
 
-export function BusinessSummaryView({ mes, summary: s, pendingReview, onTrace }: Props) {
+export function BusinessSummaryView({ mes, summary: s, pendingReview, onTrace, budget }: Props) {
   const winning = s.verdict === 'gana';
   const heroColor = s.verdict === 'sin-datos' ? 'text-ink' : winning ? 'text-belt-en_revision' : 'text-rust';
   const maxExpense = Math.max(1, ...s.topExpenses.map((e) => e.amount));
@@ -43,6 +45,15 @@ export function BusinessSummaryView({ mes, summary: s, pendingReview, onTrace }:
           </p>
         )}
       </Card>
+
+      {budget && (
+        <Card className={`border-l-4 ${budget.tone === 'bad' ? 'border-rust' : budget.tone === 'warn' ? 'border-belt-por_hacer' : budget.tone === 'good' ? 'border-belt-en_revision' : 'border-line'}`}>
+          <div className="flex flex-wrap items-center justify-between gap-2" data-testid="summary-budget">
+            <p className="bb-body text-sm text-ink"><span className="bb-label-xs text-ink-soft mr-2">Presupuesto</span>{budget.verdict}</p>
+            <Link to="/budgets" className="bb-body text-xs text-ink underline">{budget.tone === 'none' ? 'Poner metas' : 'Ver detalle'}</Link>
+          </div>
+        </Card>
+      )}
 
       {/* 2. Tres números */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
