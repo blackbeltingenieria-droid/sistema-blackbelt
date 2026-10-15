@@ -19,7 +19,7 @@ import { ControlBadge, StatusBadge } from './components/MovementBadges';
 import { QuickMovementModal } from './components/QuickMovementModal';
 import { isEligible } from './domain/movement-rules';
 import {
-  CONTROL_HELP, SIMPLE_TYPE, groupEvents, isQuickEditable, projectIncomeFill, quickInputFromMovement,
+  CONTROL_HELP, SIMPLE_TYPE, buildConceptMemory, groupEvents, lastPaymentMethod, isQuickEditable, projectIncomeFill, quickInputFromMovement,
   type EventGroup, type QuickCatalogs, type QuickEntryInput,
 } from './domain/quick-entry';
 import { useMovementCatalogs } from './hooks/useMovementCatalogs';
@@ -81,6 +81,10 @@ export function MovementsPage() {
     set.add(currentMonth());
     return [...set].sort().reverse();
   }, [rows]);
+
+  const corpId = catalogs.units.find((u) => u.code === 'CORP')?.id;
+  const memory = useMemo(() => buildConceptMemory(rows, corpId), [rows, corpId]);
+  const defaultPayment = useMemo(() => lastPaymentMethod(rows), [rows]);
 
   const monthRows = rows.filter((r) => month === ALL || r.mes === month);
   const events = useMemo(() => groupEvents(monthRows), [monthRows]);
@@ -325,6 +329,8 @@ export function MovementsPage() {
           catalogs={quickCatalogs}
           initial={modal.event ? quickInputFromMovement(modal.event.main, Boolean(modal.event.pair), quickCatalogs) : modal.prefill}
           editingCode={modal.event?.main.movement_code}
+          memory={memory}
+          defaultPaymentMethod={defaultPayment}
           onSubmit={submitQuick}
           onClose={() => setModal({ kind: 'none' })}
           onAdvanced={() => setModal({ kind: 'full', movement: null })}

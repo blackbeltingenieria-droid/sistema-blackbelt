@@ -80,7 +80,10 @@ export function WorkHoursPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,380px)_1fr] gap-4 items-start">
-          <HoursForm specialists={specialists} projects={projects} tasksByProject={tasksByProject} lockedSpecialistId={locked} onSubmit={add} />
+          {!loading && (
+            <HoursForm specialists={specialists} projects={projects} tasksByProject={tasksByProject} lockedSpecialistId={locked} onSubmit={add}
+              entries={entries} mySpecialistId={user?.specialistId ?? null} />
+          )}
           <div className="space-y-4 min-w-0">
             <ProjectHoursSummary summaries={summaries} projects={projects} specialists={specialists} />
             <Card padding="p-0" plainBelow="md">

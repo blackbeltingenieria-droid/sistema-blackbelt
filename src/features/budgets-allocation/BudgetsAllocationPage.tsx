@@ -3,7 +3,7 @@
 // Pestañas: ¿Cómo voy? (por defecto) · Mis metas · Reparto de gastos comunes (CORP → unidades).
 // Misma tabla de metas del Modelo C; la comparación exacta tipo Excel sigue en "Mis metas → detalle".
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card } from '../../components/ui/Card';
 import { DataTable, type Column } from '../../components/ui/DataTable';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -18,9 +18,15 @@ import { BudgetStatusView } from './components/BudgetStatusView';
 import { BudgetTable } from './components/BudgetTable';
 import { SimpleBudgetModal } from './components/SimpleBudgetModal';
 import type { BudgetComparison } from './domain/budget-comparison';
-import { buildBudgetStatus } from './domain/budget-status';
+import { budgetSuggestion, buildBudgetStatus } from './domain/budget-status';
+import { previousMonth } from '../results-cash/domain/presentation';
+import { getBudgets } from './services/budget-service';
+import type { DbBudget } from '../../types/database';
 import { useBudgetsAllocation } from './hooks/useBudgetsAllocation';
-import { copyBudgetsFromPreviousMonth, deleteBudget, saveAllocation, saveSimpleBudget } from './services/budget-service';
+import { copyBudgetsFromPreviousMonth, deleteBudget, getAllocation, saveAllocation, saveSimpleBudget, type MonthAllocation } from './services/budget-service';
+import { allocationByIncome } from './domain/allocation-suggest';
+import { isEligible } from '../movements/domain/movement-rules';
+import type { CommercialUnitCode } from '../results-cash/domain/calculations';
 import type { BudgetFormValues } from './types';
 
 type Tab = 'status' | 'goals' | 'allocation';
@@ -45,6 +51,32 @@ export function BudgetsAllocationPage() {
   }, [month]);
 
   const budgets = data.comparisons.map((c) => c.budget);
+  const prevMes = previousMonth(month);
+  const [prevBudgets, setPrevBudgets] = useState<DbBudget[]>([]);
+  useEffect(() => {
+    let alive = true;
+    getBudgets(prevMes).then((b) => alive && setPrevBudgets(b)).catch(() => alive && setPrevBudgets([]));
+    return () => { alive = false; };
+  }, [prevMes]);
+  const [prevAllocation, setPrevAllocation] = useState<MonthAllocation | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getAllocation(prevMes).then((a) => alive && setPrevAllocation(a)).catch(() => alive && setPrevAllocation(null));
+    return () => { alive = false; };
+  }, [prevMes]);
+  const byIncome = useMemo(() => {
+    const income: Partial<Record<CommercialUnitCode, number>> = {};
+    for (const m of data.movements) {
+      if (isEligible(m) && m.mes === month && m.record_type === 'INGRESO_RECONOCIDO' && m.unitCode !== 'CORP') {
+        const k = m.unitCode as CommercialUnitCode;
+        income[k] = (income[k] ?? 0) + m.amount;
+      }
+    }
+    return allocationByIncome(income);
+  }, [data.movements, month]);
+  const generalCategoryId = categories.find((c) => c.code === 'OTR')?.id;
+  const suggest = (unitId: number, categoryId: number) =>
+    budgetSuggestion({ prevMes, prevBudgets, movements: data.movements, unitId, categoryId, generalCategoryId });
   const status = useMemo(
     () => buildBudgetStatus({
       mes: month, today: new Date().toISOString().slice(0, 10), budgets, movements: data.movements, units, categories,
@@ -190,6 +222,7 @@ export function BudgetsAllocationPage() {
               initial={data.allocation}
               summary={data.summary}
               onTrace={(title, ids) => setTrace({ title, ids })}
+              suggestions={{ previous: prevAllocation, byIncome }}
               onSave={async (pcts, note) => { await saveAllocation(month, pcts, note); await data.refetch(); }}
             />
           </>
@@ -203,6 +236,7 @@ export function BudgetsAllocationPage() {
           units={units}
           areas={areas}
           categories={categories}
+          suggest={suggest}
           onSubmit={async (values) => { await saveSimpleBudget(values, form.id); await data.refetch(); }}
           onClose={() => setForm(null)}
         />

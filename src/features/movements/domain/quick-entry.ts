@@ -282,3 +282,52 @@ export function projectPaymentNote(pending: number, amount: number): { tone: 'ok
   if (left === 0) return { tone: 'ok', text: 'Con este pago el proyecto queda pagado por completo.' };
   return { tone: 'ok', text: `Después de este pago faltarán ${soles(left)}.` };
 }
+
+// ─── Memoria de registros: repetir un gasto/ingreso conocido ─────────────────
+export interface ConceptMemory {
+  concept: string;
+  kind: QuickKind;
+  amount: number;
+  unitId: number | null;      // null = toda la empresa
+  projectId: number | null;
+  categoryId: number | null;
+  paymentMethod: string | null;
+  counterparty: string | null;
+  settled: boolean;
+}
+
+type MemoryRow = Pick<MovementFormValues, 'record_type' | 'amount' | 'business_unit_id' | 'project_id' | 'cost_category_id' | 'payment_method' | 'counterparty' | 'detail'>
+  & { movement_code: string; notes: string | null };
+
+const memKey = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+
+/** Último registro de cada concepto (filas ordenadas de más nuevo a más antiguo). */
+export function buildConceptMemory(rows: MemoryRow[], corpUnitId: number | undefined): Map<string, ConceptMemory> {
+  const out = new Map<string, ConceptMemory>();
+  for (const { main, pair } of groupEvents(rows)) {
+    if (!isQuickEditable(main.record_type) || !main.detail?.trim()) continue;
+    const key = memKey(main.detail);
+    if (out.has(key)) continue;
+    out.set(key, {
+      concept: main.detail.trim(),
+      kind: main.record_type === RECORD_TYPE.INGRESO_RECONOCIDO ? 'INGRESO' : 'EGRESO',
+      amount: main.amount,
+      unitId: main.business_unit_id === corpUnitId ? null : main.business_unit_id,
+      projectId: main.project_id,
+      categoryId: main.cost_category_id || null,
+      paymentMethod: (pair?.payment_method ?? main.payment_method) || null,
+      counterparty: main.counterparty,
+      settled: Boolean(pair),
+    });
+  }
+  return out;
+}
+
+export function findConcept(memory: Map<string, ConceptMemory>, concept: string): ConceptMemory | undefined {
+  return memory.get(memKey(concept));
+}
+
+/** Medio de pago más reciente (para proponerlo por defecto). */
+export function lastPaymentMethod(rows: Pick<MovementFormValues, 'payment_method'>[]): string | null {
+  return rows.find((r) => r.payment_method)?.payment_method ?? null;
+}

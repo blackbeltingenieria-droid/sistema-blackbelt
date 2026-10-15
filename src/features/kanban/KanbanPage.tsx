@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/hooks/useAuth';
+import { defaultAssigneeId as pickAssignee, defaultSprintId as pickSprint } from './kanban-defaults';
 import { useKanbanBoard } from './hooks/useKanbanBoard';
 import { KanbanBoard } from './components/KanbanBoard';
 import { KanbanToolbar, FILTER_ALL, FILTER_NO_SPRINT, type SprintFilter } from './components/KanbanToolbar';
@@ -97,7 +98,8 @@ export function KanbanPage() {
           projectId={projectId}
           task={taskModal.mode === 'edit' ? taskModal.task : null}
           defaultStatus={taskModal.mode === 'new' ? taskModal.status : taskModal.task.status}
-          defaultSprintId={defaultSprintId}
+          defaultSprintId={pickSprint(board.sprints, defaultSprintId)}
+          defaultAssigneeId={pickAssignee(board.tasks, user?.specialistId ?? null, isCollaborator)}
           sprints={board.sprints}
           specialists={board.specialists}
           onSubmit={async (payload) => {
@@ -117,6 +119,7 @@ export function KanbanPage() {
       {showSprintModal && valid && (
         <SprintFormModal
           projectId={projectId}
+          sprints={board.sprints}
           onSubmit={board.addSprint}
           onClose={() => setShowSprintModal(false)}
         />

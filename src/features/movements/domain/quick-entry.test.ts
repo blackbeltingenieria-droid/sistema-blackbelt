@@ -4,7 +4,7 @@ import type { ProjectRow } from '../../clients-projects/types';
 import { computeControl, enrichMovement } from './movement-rules';
 import {
   buildCashPair, buildMainMovement, groupEvents, pairedCode, pendingBalances, quickInputFromMovement,
-  projectIncomeFill, projectPaymentNote, suggestCategoryCode, validateQuick, type QuickEntryInput,
+  buildConceptMemory, findConcept, lastPaymentMethod, projectIncomeFill, projectPaymentNote, suggestCategoryCode, validateQuick, type QuickEntryInput,
 } from './quick-entry';
 
 const project: ProjectRow = {
@@ -118,5 +118,21 @@ describe('cobro de un proyecto', () => {
     expect(projectPaymentNote(1500, 1500)?.text).toContain('queda pagado por completo');
     expect(projectPaymentNote(1500, 2000)?.tone).toBe('warn');
     expect(projectPaymentNote(1500, 0)).toBeNull();
+  });
+});
+
+describe('memoria de conceptos (repetir un gasto conocido)', () => {
+  const old = { id: 10, movement_code: 'MOV-10', ...buildMainMovement({ ...base, concept: 'Bitel mensajes', amount: 35 }, C) };
+  const recent = { id: 11, movement_code: 'MOV-11', ...buildMainMovement({ ...base, concept: 'BITEL  mensajes', amount: 39.9, unitId: 3 }, C) };
+  const pay = { id: 12, movement_code: 'MOV-12', ...buildCashPair(recent, 'MOV-11', C) };
+  const mem = buildConceptMemory([pay, recent, old], 6);
+
+  it('recuerda el último registro de cada concepto (sin importar mayúsculas ni espacios)', () => {
+    const m = findConcept(mem, 'bitel mensajes');
+    expect(m).toMatchObject({ kind: 'EGRESO', amount: 39.9, unitId: 3, paymentMethod: 'YAPE', settled: true });
+    expect(mem.size).toBe(1);
+  });
+  it('medio de pago más reciente', () => {
+    expect(lastPaymentMethod([{ payment_method: null }, { payment_method: 'PLIN' }, { payment_method: 'YAPE' }])).toBe('PLIN');
   });
 });

@@ -7,7 +7,7 @@ import { ModalShell } from '../../../components/ui/ModalShell';
 import { formatPen } from '../../../lib/format';
 import type { ProjectRow } from '../../clients-projects/types';
 import {
-  CATEGORY_SHORT, EXPENSE_CATEGORY_CODES, PAYMENT_METHODS, projectIncomeFill, projectPaymentNote, resolveUnit, suggestCategoryCode, validateQuick,
+  CATEGORY_SHORT, EXPENSE_CATEGORY_CODES, findConcept, type ConceptMemory, PAYMENT_METHODS, projectIncomeFill, projectPaymentNote, resolveUnit, suggestCategoryCode, validateQuick,
   type QuickCatalogs, type QuickEntryInput, type QuickKind,
 } from '../domain/quick-entry';
 import { CORP_CODE } from '../domain/movement-rules';
@@ -21,6 +21,10 @@ interface QuickMovementModalProps {
   onAdvanced?: () => void;
   /** Solo al editar: elimina el registro (y su cobro/pago). */
   onDelete?: () => Promise<void>;
+  /** Registros anteriores por concepto: escribir uno conocido rellena el resto. */
+  memory?: Map<string, ConceptMemory>;
+  /** Medio de pago usado la última vez (se propone por defecto). */
+  defaultPaymentMethod?: string | null;
 }
 
 const FORM_ID = 'quick-movement-form';
@@ -31,11 +35,11 @@ const chip = (active: boolean) =>
     active ? 'border-ink bg-ink text-paper' : 'border-line bg-paper text-ink hover:border-ink-soft'
   }`;
 
-export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, onClose, onAdvanced, onDelete }: QuickMovementModalProps) {
+export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, onClose, onAdvanced, onDelete, memory, defaultPaymentMethod = null }: QuickMovementModalProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [v, setV] = useState<QuickEntryInput>(
     () => initial ?? {
-      kind: 'EGRESO', date: today(), amount: 0, concept: '', settled: true, paymentMethod: null,
+      kind: 'EGRESO', date: today(), amount: 0, concept: '', settled: true, paymentMethod: defaultPaymentMethod,
       counterparty: null, unitId: null, projectId: null, categoryId: null,
     },
   );
@@ -74,6 +78,30 @@ export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, o
   const categoryCode = chosenCategory?.code ?? suggested ?? 'OTR';
 
   const patch = (changes: Partial<QuickEntryInput>) => setV((prev) => ({ ...prev, ...changes }));
+
+  // Repetir un registro conocido: al escribir un concepto ya usado, se rellena con lo de la última vez.
+  const [filledFrom, setFilledFrom] = useState<string | null>(null);
+  const conceptOptions = memory
+    ? [...memory.values()].filter((m) => m.kind === v.kind).map((m) => m.concept).slice(0, 40)
+    : [];
+  function onConcept(text: string) {
+    const m = !editingCode && memory ? findConcept(memory, text) : undefined;
+    if (!m || m.kind !== v.kind) { patch({ concept: text }); setFilledFrom(null); return; }
+    const projectRow = m.projectId ? catalogs.projects.find((p) => p.id === m.projectId) : undefined;
+    const useAmount = !(v.amount > 0) && !(m.kind === 'INGRESO' && projectRow);
+    if (useAmount) setAmountText(String(m.amount));
+    setV((prev) => ({
+      ...prev, concept: text,
+      amount: useAmount ? m.amount : prev.amount,
+      unitId: m.unitId, projectId: m.projectId, categoryId: m.categoryId,
+      paymentMethod: m.paymentMethod ?? prev.paymentMethod, counterparty: m.counterparty ?? prev.counterparty,
+      settled: m.settled,
+    }));
+    if (m.kind === 'INGRESO' && projectRow && pendingFor(projectRow) > 0 && !(v.amount > 0)) fillFromProject(projectRow);
+    const cat = m.categoryId ? catalogs.categories.find((c) => c.id === m.categoryId) : undefined;
+    const unitName = m.unitId ? catalogs.units.find((u) => u.id === m.unitId)?.name : 'toda la empresa';
+    setFilledFrom(`Rellené con lo de la última vez: ${useAmount ? formatPen(m.amount) + ' · ' : ''}${m.kind === 'EGRESO' && cat ? (CATEGORY_SHORT[cat.code] ?? cat.name) + ' · ' : ''}${unitName}${m.paymentMethod ? ' · ' + m.paymentMethod : ''}. Revisa y guarda.`);
+  }
   const setKind = (kind: QuickKind) => patch({ kind, categoryId: null });
 
   async function handleSubmit(e: FormEvent) {
@@ -185,6 +213,28 @@ export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, o
           </div>
         )}
 
+        {/* 3. Qué fue */}
+        <div>
+          <label className="bb-label" htmlFor="q-concept">¿Qué fue?</label>
+          <input id="q-concept" className="bb-input" value={v.concept}
+            placeholder={isIncome ? 'Ej.: Cuota del cliente por la tesis' : 'Ej.: Bitel, Canva, pago a especialista'}
+            list="q-concepts" autoComplete="off"
+            onChange={(e) => onConcept(e.target.value)} />
+          <datalist id="q-concepts">
+            {conceptOptions.map((c) => <option key={c} value={c} />)}
+          </datalist>
+          {filledFrom && (
+            <p className="bb-body text-xs text-belt-en_revision mt-1" data-testid="quick-memory">✓ {filledFrom}</p>
+          )}
+          {touched && errors.concept && <p className="bb-body text-xs text-rust mt-1">{errors.concept}</p>}
+          {!isIncome && v.concept.trim() && !v.categoryId && (
+            <p className="bb-body text-xs text-ink-soft mt-1" data-testid="quick-suggestion">
+              Se guardará en: <strong className="text-ink">{CATEGORY_SHORT[categoryCode]}</strong>
+              {suggested ? '' : ' (puedes elegir otra abajo)'}
+            </p>
+          )}
+        </div>
+
         {/* 2. Monto y fecha */}
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -198,21 +248,6 @@ export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, o
             <label className="bb-label" htmlFor="q-date">Fecha</label>
             <input id="q-date" type="date" className="bb-input" value={v.date} onChange={(e) => patch({ date: e.target.value })} />
           </div>
-        </div>
-
-        {/* 3. Qué fue */}
-        <div>
-          <label className="bb-label" htmlFor="q-concept">¿Qué fue?</label>
-          <input id="q-concept" className="bb-input" value={v.concept}
-            placeholder={isIncome ? 'Ej.: Cuota del cliente por la tesis' : 'Ej.: Bitel, Canva, pago a especialista'}
-            onChange={(e) => patch({ concept: e.target.value })} />
-          {touched && errors.concept && <p className="bb-body text-xs text-rust mt-1">{errors.concept}</p>}
-          {!isIncome && v.concept.trim() && !v.categoryId && (
-            <p className="bb-body text-xs text-ink-soft mt-1" data-testid="quick-suggestion">
-              Se guardará en: <strong className="text-ink">{CATEGORY_SHORT[categoryCode]}</strong>
-              {suggested ? '' : ' (puedes elegir otra abajo)'}
-            </p>
-          )}
         </div>
 
         {/* 4. Unidad (obligatoria solo para ingresos) */}

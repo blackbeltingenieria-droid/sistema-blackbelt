@@ -8,6 +8,8 @@ import type { ProjectRow } from '../../clients-projects/types';
 import type { Specialist, Task } from '../../kanban/types';
 import type { WorkHourPayload } from '../services/work-hours-service';
 import { breaksToText, computeWorkedHours, formatDuration, type TimeBreak } from '../time-range';
+import { lastEntryDefaults, suggestedTaskId } from '../hours-defaults';
+import type { DbWorkHour } from '../../../types/database';
 
 interface HoursFormProps {
   specialists: Specialist[];
@@ -15,18 +17,36 @@ interface HoursFormProps {
   tasksByProject: Record<number, Task[]>;
   lockedSpecialistId: number | null;
   onSubmit: (payload: WorkHourPayload) => Promise<void>;
+  /** Registros existentes: se usa el último de la persona para rellenar proyecto y horario. */
+  entries?: DbWorkHour[];
+  /** Especialista del usuario que entra (Admin vinculado): persona por defecto. */
+  mySpecialistId?: number | null;
 }
 
 const LUNCH: TimeBreak = { start: '13:00', end: '14:00' };
 
-export function HoursForm({ specialists, projects, tasksByProject, lockedSpecialistId, onSubmit }: HoursFormProps) {
-  const [specialistId, setSpecialistId] = useState<number>(lockedSpecialistId ?? 0);
-  const [projectId, setProjectId] = useState<number>(0);
+export function HoursForm({ specialists, projects, tasksByProject, lockedSpecialistId, onSubmit, entries = [], mySpecialistId = null }: HoursFormProps) {
+  const initialPerson = lockedSpecialistId ?? mySpecialistId ?? 0;
+  const initialDefaults = initialPerson ? lastEntryDefaults(entries, initialPerson) : null;
+  const [specialistId, setSpecialistId] = useState<number>(initialPerson);
+  const [projectId, setProjectId] = useState<number>(initialDefaults?.projectId ?? 0);
   const [taskId, setTaskId] = useState<number>(0);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [start, setStart] = useState('08:00');
-  const [end, setEnd] = useState('');
-  const [breaks, setBreaks] = useState<TimeBreak[]>([]);
+  const [start, setStart] = useState(initialDefaults?.start ?? '08:00');
+  const [end, setEnd] = useState(initialDefaults?.end ?? '');
+  const [breaks, setBreaks] = useState<TimeBreak[]>(initialDefaults?.breaks ?? []);
+  const [hint, setHint] = useState<string | null>(initialDefaults ? 'Relleno con tu último registro: proyecto y horario. Cámbialo si hoy fue distinto.' : null);
+
+  /** Al elegir a la persona, se rellenan proyecto y horario con su último registro. */
+  function choosePerson(id: number) {
+    setSpecialistId(id);
+    const d = id ? lastEntryDefaults(entries, id) : null;
+    if (!d) { setHint(null); return; }
+    setProjectId(d.projectId);
+    setTaskId(suggestedTaskId(tasksByProject[d.projectId] ?? [], id));
+    setStart(d.start); setEnd(d.end); setBreaks(d.breaks);
+    setHint('Relleno con su último registro: proyecto y horario. Cámbialo si hoy fue distinto.');
+  }
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -54,10 +74,10 @@ export function HoursForm({ specialists, projects, tasksByProject, lockedSpecial
         break_minutes: calc.breakMinutes,
         breaks: breaksToText(breaks),
       });
-      setEnd('');
-      setBreaks([]);
+      // Se mantienen persona, proyecto y horario para el siguiente registro; solo se limpia lo propio de este.
       setDescription('');
       setTaskId(0);
+      setHint(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar.');
     } finally {
@@ -72,7 +92,7 @@ export function HoursForm({ specialists, projects, tasksByProject, lockedSpecial
         {lockedSpecialistId === null && (
           <div>
             <label className="bb-label" htmlFor="wh-person">Persona</label>
-            <select id="wh-person" className="bb-input" value={specialistId} onChange={(e) => setSpecialistId(Number(e.target.value))}>
+            <select id="wh-person" className="bb-input" value={specialistId} onChange={(e) => choosePerson(Number(e.target.value))}>
               <option value={0}>Elige…</option>
               {specialists.filter((s) => s.active).map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
             </select>
@@ -80,7 +100,7 @@ export function HoursForm({ specialists, projects, tasksByProject, lockedSpecial
         )}
         <div>
           <label className="bb-label" htmlFor="wh-project">Proyecto</label>
-          <select id="wh-project" className="bb-input" value={projectId} onChange={(e) => { setProjectId(Number(e.target.value)); setTaskId(0); }}>
+          <select id="wh-project" className="bb-input" value={projectId} onChange={(e) => { const id = Number(e.target.value); setProjectId(id); setTaskId(suggestedTaskId(tasksByProject[id] ?? [], lockedSpecialistId ?? specialistId)); }}>
             <option value={0}>Elige…</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.code ?? `#${p.id}`} · {p.projectName}</option>)}
           </select>
@@ -141,6 +161,7 @@ export function HoursForm({ specialists, projects, tasksByProject, lockedSpecial
         </p>
 
         <div><label className="bb-label" htmlFor="wh-desc">¿Qué hiciste? — opcional</label><input id="wh-desc" className="bb-input" value={description} onChange={(e) => setDescription(e.target.value)} /></div>
+        {hint && <p className="bb-body text-xs text-belt-en_revision" data-testid="hours-hint">✓ {hint}</p>}
         {error && <p role="alert" className="bb-body text-sm text-rust">{error}</p>}
         <button type="submit" disabled={submitting}
           className="w-full min-h-[44px] sm:min-h-0 py-2.5 bg-gold text-ink rounded-card bb-body text-sm font-semibold hover:bg-gold/90 disabled:opacity-50">
