@@ -4,10 +4,10 @@
 // `mes` y `control` se calculan aquí (dominio) y nunca se guardan.
 
 import { isSupabaseConfigured, supabase } from '../../../lib/supabase';
-import { MOVEMENT_STATUS } from '../../../types/database';
+import { MOVEMENT_STATUS, RECORD_TYPE } from '../../../types/database';
 import type { DbMovement, MovementStatus } from '../../../types/database';
 import { getAreas, getBusinessUnits, getCostCategories } from '../../catalogs/services/catalog-service';
-import { getProjectRows } from '../../clients-projects/services/project-service';
+import { addProjectPayment, getProjectRows, removeProjectPayment } from '../../clients-projects/services/project-service';
 import { enrichMovement, nextMovementCode } from '../domain/movement-rules';
 import { validateMovementForm } from '../domain/movement-validation';
 import { buildCashPair, buildMainMovement, type QuickCatalogs, type QuickEntryInput } from '../domain/quick-entry';
@@ -123,29 +123,55 @@ export async function deleteMovement(id: number): Promise<void> {
 // ─── Registro rápido (ingreso/egreso + cobro/pago enlazado) ──────────────────
 // Usa las mismas funciones de arriba: las reglas del Modelo C no cambian.
 
-/** Crea el ingreso/gasto y, si ya se cobró/pagó, su fila de caja enlazada. */
+type EventMain = Pick<DbMovement, 'id' | 'movement_code' | 'record_type' | 'project_id'>;
+type EventPair = Pick<DbMovement, 'id' | 'movement_date' | 'amount'>;
+
+const isProjectIncome = (m: Pick<DbMovement, 'record_type' | 'project_id'>) =>
+  m.record_type === RECORD_TYPE.INGRESO_RECONOCIDO && m.project_id !== null;
+
+/** Crea el ingreso/gasto y, si ya se cobró/pagó, su fila de caja enlazada.
+ *  Si es el cobro de un proyecto, también lo anota en los pagos del proyecto (baja el "falta pagar"). */
 export async function createQuickMovement(input: QuickEntryInput, c: QuickCatalogs): Promise<DbMovement> {
   const main = await createMovement(buildMainMovement(input, c));
-  if (input.settled) await createMovement(buildCashPair(main, main.movement_code, c));
+  if (input.settled) {
+    await createMovement(buildCashPair(main, main.movement_code, c));
+    if (isProjectIncome(main)) {
+      await addProjectPayment({ project_id: main.project_id as number, amount: main.amount, payment_date: main.movement_date, payment_method: main.payment_method });
+    }
+  }
   return main;
 }
 
-/** Edita un evento del formulario rápido y crea, actualiza o quita su cobro/pago. */
-export async function updateQuickMovement(
-  main: Pick<DbMovement, 'id' | 'movement_code'>,
-  pair: Pick<DbMovement, 'id' | 'movement_date'> | null,
-  input: QuickEntryInput,
-  c: QuickCatalogs,
-): Promise<void> {
+/** Edita un evento del formulario rápido y crea, actualiza o quita su cobro/pago (y el pago del proyecto). */
+export async function updateQuickMovement(main: EventMain, pair: EventPair | null, input: QuickEntryInput, c: QuickCatalogs): Promise<void> {
+  if (pair && isProjectIncome(main)) {
+    await removeProjectPayment({ project_id: main.project_id as number, amount: pair.amount, payment_date: pair.movement_date });
+  }
   const values = buildMainMovement(input, c);
   await updateMovement(main.id, values);
+  let cashDate: string | null = null;
   if (input.settled && pair) {
     await updateMovement(pair.id, buildCashPair(values, main.movement_code, c, pair.movement_date));
+    cashDate = pair.movement_date;
   } else if (input.settled) {
     await createMovement(buildCashPair(values, main.movement_code, c));
+    cashDate = values.movement_date;
   } else if (pair) {
     await setMovementStatus(pair.id, MOVEMENT_STATUS.BORRADOR);
     await deleteMovement(pair.id);
+  }
+  if (cashDate && isProjectIncome(values)) {
+    await addProjectPayment({ project_id: values.project_id as number, amount: values.amount, payment_date: cashDate, payment_method: values.payment_method });
+  }
+}
+
+/** Elimina el evento completo (ingreso/gasto + cobro/pago + pago del proyecto). */
+export async function deleteQuickEvent(main: EventMain, pair: EventPair | null): Promise<void> {
+  const ids = [main.id, ...(pair ? [pair.id] : [])];
+  await setEventStatus(ids, MOVEMENT_STATUS.BORRADOR);
+  await deleteEvent(ids);
+  if (pair && isProjectIncome(main)) {
+    await removeProjectPayment({ project_id: main.project_id as number, amount: pair.amount, payment_date: pair.movement_date });
   }
 }
 

@@ -3,7 +3,8 @@
 // dentro), registro rápido y explicaciones en palabras simples. La "Vista contable" muestra
 // todas las filas del libro único del Modelo C, como antes.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { DataTable, type Column } from '../../components/ui/DataTable';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
@@ -18,13 +19,13 @@ import { ControlBadge, StatusBadge } from './components/MovementBadges';
 import { QuickMovementModal } from './components/QuickMovementModal';
 import { isEligible } from './domain/movement-rules';
 import {
-  CONTROL_HELP, SIMPLE_TYPE, groupEvents, isQuickEditable, quickInputFromMovement,
+  CONTROL_HELP, SIMPLE_TYPE, groupEvents, isQuickEditable, projectIncomeFill, quickInputFromMovement,
   type EventGroup, type QuickCatalogs, type QuickEntryInput,
 } from './domain/quick-entry';
 import { useMovementCatalogs } from './hooks/useMovementCatalogs';
 import { useMovements } from './hooks/useMovements';
 import {
-  createMovement, createQuickMovement, deleteEvent, deleteMovement, setEventStatus, setMovementStatus,
+  createMovement, createQuickMovement, deleteMovement, deleteQuickEvent, setEventStatus, setMovementStatus,
   updateMovement, updateQuickMovement,
 } from './services/movement-service';
 import type { MovementFormValues, MovementRow } from './types';
@@ -33,7 +34,7 @@ const ALL = '';
 type Event = EventGroup<MovementRow>;
 type Modal =
   | { kind: 'none' }
-  | { kind: 'quick'; event: Event | null }
+  | { kind: 'quick'; event: Event | null; prefill?: QuickEntryInput }
   | { kind: 'full'; movement: MovementRow | null };
 
 const btn = 'px-3 py-1.5 min-h-[36px] border border-line rounded-card bb-body text-xs hover:bg-canvas whitespace-nowrap';
@@ -51,6 +52,25 @@ export function MovementsPage() {
   const [recordType, setRecordType] = useState(ALL);
   const [status, setStatus] = useState(ALL);
   const [unit, setUnit] = useState(ALL);
+
+  // "Registrar pago" desde Clientes y Proyectos: abre el formulario ya lleno con lo que falta pagar.
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    const id = Number(params.get('cobrar'));
+    if (!id || catalogs.loading) return;
+    const p = catalogs.projects.find((x) => x.id === id);
+    if (p) {
+      const f = projectIncomeFill(p, p.pendingBalance);
+      setModal({
+        kind: 'quick', event: null,
+        prefill: {
+          kind: 'INGRESO', date: new Date().toISOString().slice(0, 10), amount: f.amount, concept: f.concept, settled: true,
+          paymentMethod: null, counterparty: f.counterparty, unitId: f.unitId, projectId: p.id, categoryId: null,
+        },
+      });
+    }
+    setParams({}, { replace: true });
+  }, [params, catalogs.loading, catalogs.projects, setParams]);
 
   const quickCatalogs: QuickCatalogs = {
     units: catalogs.units, areas: catalogs.areas, categories: catalogs.categories, projects: catalogs.projects,
@@ -190,6 +210,7 @@ export function MovementsPage() {
     if (modal.kind === 'quick' && modal.event) await updateQuickMovement(modal.event.main, modal.event.pair, input, quickCatalogs);
     else await createQuickMovement(input, quickCatalogs);
     await refetch();
+    catalogs.refetch();
   }
   async function submitFull(values: MovementFormValues) {
     if (modal.kind === 'full' && modal.movement) await updateMovement(modal.movement.id, values);
@@ -302,16 +323,16 @@ export function MovementsPage() {
       {modal.kind === 'quick' && !catalogs.loading && (
         <QuickMovementModal
           catalogs={quickCatalogs}
-          initial={modal.event ? quickInputFromMovement(modal.event.main, Boolean(modal.event.pair), quickCatalogs) : undefined}
+          initial={modal.event ? quickInputFromMovement(modal.event.main, Boolean(modal.event.pair), quickCatalogs) : modal.prefill}
           editingCode={modal.event?.main.movement_code}
           onSubmit={submitQuick}
           onClose={() => setModal({ kind: 'none' })}
           onAdvanced={() => setModal({ kind: 'full', movement: null })}
           onDelete={modal.event ? async () => {
-            const ids = idsOf(modal.event as Event);
-            await setEventStatus(ids, MOVEMENT_STATUS.BORRADOR);
-            await deleteEvent(ids);
+            const ev = modal.event as Event;
+            await deleteQuickEvent(ev.main, ev.pair);
             await refetch();
+            catalogs.refetch();
           } : undefined}
         />
       )}

@@ -7,7 +7,7 @@ import { ModalShell } from '../../../components/ui/ModalShell';
 import { formatPen } from '../../../lib/format';
 import type { ProjectRow } from '../../clients-projects/types';
 import {
-  CATEGORY_SHORT, EXPENSE_CATEGORY_CODES, PAYMENT_METHODS, resolveUnit, suggestCategoryCode, validateQuick,
+  CATEGORY_SHORT, EXPENSE_CATEGORY_CODES, PAYMENT_METHODS, projectIncomeFill, projectPaymentNote, resolveUnit, suggestCategoryCode, validateQuick,
   type QuickCatalogs, type QuickEntryInput, type QuickKind,
 } from '../domain/quick-entry';
 import { CORP_CODE } from '../domain/movement-rules';
@@ -51,6 +51,23 @@ export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, o
   const expenseCategories = catalogs.categories.filter((c) => EXPENSE_CATEGORY_CODES.includes(c.code));
   const project: ProjectRow | undefined = v.projectId ? catalogs.projects.find((p) => p.id === v.projectId) : undefined;
   const unit = resolveUnit(v, catalogs);
+
+  // Lo que falta pagar de un proyecto. Al editar un cobro ya guardado, se le suma ese mismo cobro.
+  const pendingFor = (p: ProjectRow) =>
+    p.pendingBalance + (editingCode && initial?.kind === 'INGRESO' && initial.settled && initial.projectId === p.id ? initial.amount : 0);
+  const incomeProjects = [...catalogs.projects]
+    .filter((p) => p.status !== 'cancelado' || p.id === v.projectId)
+    .sort((a, b) => Number(pendingFor(b) > 0) - Number(pendingFor(a) > 0) || pendingFor(b) - pendingFor(a));
+  const paymentNote = isIncome && project && v.settled ? projectPaymentNote(pendingFor(project), v.amount) : null;
+  function fillFromProject(p: ProjectRow) {
+    const f = projectIncomeFill(p, pendingFor(p));
+    setAmountText(String(f.amount));
+    setV((prev) => ({
+      ...prev, projectId: p.id, unitId: f.unitId, amount: f.amount, settled: true,
+      concept: prev.concept.trim() ? prev.concept : f.concept,
+      counterparty: prev.counterparty ?? f.counterparty,
+    }));
+  }
 
   const suggested = useMemo(() => suggestCategoryCode(v.concept), [v.concept]);
   const chosenCategory = v.categoryId ? catalogs.categories.find((c) => c.id === v.categoryId) : undefined;
@@ -122,6 +139,52 @@ export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, o
           })}
         </div>
 
+        {/* 1b. Ingreso: ¿pago de un proyecto? (rellena solo lo que falta) */}
+        {isIncome && (
+          <div className="bg-canvas rounded-card p-3 space-y-2">
+            <label className="bb-label" htmlFor="q-income-project">¿Es el pago de un proyecto?</label>
+            <select id="q-income-project" className="bb-input !bg-paper" value={v.projectId ?? ''}
+              onChange={(e) => {
+                const id = e.target.value ? Number(e.target.value) : null;
+                const p = id ? catalogs.projects.find((x) => x.id === id) : undefined;
+                if (p && pendingFor(p) > 0 && !(v.amount > 0)) fillFromProject(p);
+                else patch({ projectId: id, unitId: p ? p.businessUnitId : v.unitId });
+              }}>
+              <option value="">No, es otra venta</option>
+              {incomeProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.code ?? `#${p.id}`} · {p.projectName} ({p.clientName}) — {pendingFor(p) > 0 ? `falta ${formatPen(pendingFor(p))}` : 'pagado'}
+                </option>
+              ))}
+            </select>
+            {project && (
+              <div className="bg-paper border border-line rounded-card p-3" data-testid="project-balance">
+                <dl className="grid grid-cols-1 sm:grid-cols-3 gap-1 sm:gap-2 sm:text-center">
+                  {([
+                    ['Contrato', project.contractedAmount, 'text-ink'],
+                    ['Ya pagó', project.contractedAmount - pendingFor(project), 'text-belt-en_revision'],
+                    ['Falta', pendingFor(project), 'text-rust font-semibold'],
+                  ] as const).map(([label, value, color]) => (
+                    <div key={label} className="flex sm:block justify-between items-baseline gap-2">
+                      <dt className="bb-label-xs text-ink-soft">{label}</dt>
+                      <dd className={`bb-mono text-sm whitespace-nowrap ${color}`}>{formatPen(value)}</dd>
+                    </div>
+                  ))}
+                </dl>
+                {pendingFor(project) > 0 && v.amount !== pendingFor(project) && (
+                  <button type="button" data-testid="fill-pending" onClick={() => fillFromProject(project)}
+                    className="w-full mt-3 min-h-[44px] sm:min-h-[38px] bg-gold text-ink rounded-card bb-body text-sm font-semibold">
+                    Cobrar lo que falta: {formatPen(pendingFor(project))}
+                  </button>
+                )}
+                {paymentNote && (
+                  <p className={`bb-body text-xs mt-2 ${paymentNote.tone === 'warn' ? 'text-rust' : 'text-ink-soft'}`} data-testid="project-payment-note">{paymentNote.text}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 2. Monto y fecha */}
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -153,7 +216,7 @@ export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, o
         </div>
 
         {/* 4. Unidad (obligatoria solo para ingresos) */}
-        {isIncome && (
+        {isIncome && !v.projectId && (
           <div>
             <p className="bb-label">¿Qué unidad vendió?</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -224,7 +287,7 @@ export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, o
                 </div>
               )}
 
-              <div>
+              {!isIncome && <div>
                 <label className="bb-label" htmlFor="q-project">Proyecto <span className="text-ink-soft font-normal">— opcional</span></label>
                 <select id="q-project" className="bb-input" value={v.projectId ?? ''}
                   onChange={(e) => patch({ projectId: e.target.value ? Number(e.target.value) : null })}>
@@ -234,7 +297,7 @@ export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, o
                   ))}
                 </select>
                 {project && <p className="bb-body text-xs text-ink-soft mt-1">Se asigna a {project.businessUnitName}.</p>}
-              </div>
+              </div>}
 
               {!isIncome && (
                 <div>

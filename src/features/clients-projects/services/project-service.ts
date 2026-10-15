@@ -261,3 +261,35 @@ export async function createProject(payload: CreateProjectPayload): Promise<numb
   if (error) throw new Error(`createProject: ${error.message}`);
   return (data as { id: number }).id;
 }
+
+// ─── Pagos del proyecto desde "Ingresos y egresos" ───────────────────────────
+// Cuando se registra el cobro de un ingreso de proyecto, también se anota aquí para que
+// "Pagado" y "Falta pagar" del proyecto se actualicen solos.
+export type ProjectPaymentInput = Omit<DbProjectPayment, 'id'>;
+
+export async function addProjectPayment(p: ProjectPaymentInput): Promise<void> {
+  if (!(p.amount > 0)) return;
+  if (!isSupabaseConfigured()) {
+    const id = SEED_PAYMENTS.reduce((m, x) => Math.max(m, x.id), 0) + 1;
+    SEED_PAYMENTS.push({ id, ...p });
+    return;
+  }
+  const { error } = await sb().from('project_payments').insert(p);
+  if (error) throw new Error(`addProjectPayment: ${error.message}`);
+}
+
+/** Quita UN pago que coincida en proyecto, monto y fecha (el que se creó junto con el cobro). */
+export async function removeProjectPayment(p: Pick<DbProjectPayment, 'project_id' | 'amount' | 'payment_date'>): Promise<void> {
+  if (!isSupabaseConfigured()) {
+    const i = SEED_PAYMENTS.findIndex((x) => x.project_id === p.project_id && Number(x.amount) === p.amount && x.payment_date === p.payment_date);
+    if (i >= 0) SEED_PAYMENTS.splice(i, 1);
+    return;
+  }
+  const { data, error } = await sb().from('project_payments').select('id')
+    .eq('project_id', p.project_id).eq('amount', p.amount).eq('payment_date', p.payment_date).order('id', { ascending: false }).limit(1);
+  if (error) throw new Error(`removeProjectPayment: ${error.message}`);
+  const id = (data as { id: number }[] | null)?.[0]?.id;
+  if (!id) return;
+  const del = await sb().from('project_payments').delete().eq('id', id);
+  if (del.error) throw new Error(`removeProjectPayment: ${del.error.message}`);
+}

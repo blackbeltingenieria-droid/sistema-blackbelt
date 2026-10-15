@@ -4,7 +4,7 @@ import type { ProjectRow } from '../../clients-projects/types';
 import { computeControl, enrichMovement } from './movement-rules';
 import {
   buildCashPair, buildMainMovement, groupEvents, pairedCode, pendingBalances, quickInputFromMovement,
-  suggestCategoryCode, validateQuick, type QuickEntryInput,
+  projectIncomeFill, projectPaymentNote, suggestCategoryCode, validateQuick, type QuickEntryInput,
 } from './quick-entry';
 
 const project: ProjectRow = {
@@ -104,5 +104,19 @@ describe('groupEvents y pendientes', () => {
   it('editar recupera los datos del formulario simple', () => {
     const q = quickInputFromMovement(main, true, C);
     expect([q.kind, q.amount, q.unitId, q.settled, q.concept]).toEqual(['EGRESO', 39.9, null, true, base.concept]);
+  });
+});
+
+describe('cobro de un proyecto', () => {
+  it('rellena monto con lo que falta, concepto y cliente', () => {
+    expect(projectIncomeFill(project, 1500)).toEqual({
+      amount: 1500, concept: 'Pago de WILMER SANCHEZ – Desarrollo de tesis', counterparty: 'WILMER SANCHEZ', unitId: 3,
+    });
+  });
+  it('dice cuánto quedará, si queda pagado o si se pasa', () => {
+    expect(projectPaymentNote(1500, 500)).toEqual({ tone: 'ok', text: 'Después de este pago faltarán S/ 1,000.00.' });
+    expect(projectPaymentNote(1500, 1500)?.text).toContain('queda pagado por completo');
+    expect(projectPaymentNote(1500, 2000)?.tone).toBe('warn');
+    expect(projectPaymentNote(1500, 0)).toBeNull();
   });
 });
