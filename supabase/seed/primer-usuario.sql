@@ -43,11 +43,14 @@ BEGIN
 
   SELECT id INTO v_role FROM roles WHERE code = 'admin';
 
-  IF EXISTS (SELECT 1 FROM users WHERE lower(full_name) = lower(v_name) OR lower(email) = lower(v_email)) THEN
-    -- Ya existe: solo se asegura que sea Administrador y esté vinculado a su especialista.
-    UPDATE users SET role_id = v_role, specialist_id = v_spec, active = TRUE
-     WHERE lower(full_name) = lower(v_name) OR lower(email) = lower(v_email);
+  IF EXISTS (SELECT 1 FROM users WHERE lower(email) = lower(v_email)) THEN
+    -- Ya existe con ese correo: se asegura que sea Administrador, activo y vinculado a su especialista.
+    UPDATE users SET role_id = v_role, specialist_id = v_spec, active = TRUE WHERE lower(email) = lower(v_email);
     RAISE NOTICE 'Henry ya tenía usuario: quedó como Administrador y vinculado a su especialista.';
+  ELSIF EXISTS (SELECT 1 FROM users WHERE lower(full_name) = lower(v_name)) THEN
+    -- Ya existe con su nombre pero otro correo: se le pone el correo nuevo (el que usará para entrar).
+    UPDATE users SET email = v_email, role_id = v_role, specialist_id = v_spec, active = TRUE WHERE lower(full_name) = lower(v_name);
+    RAISE NOTICE 'Henry ya tenía usuario: ahora entra con %, como Administrador.', v_email;
   ELSE
     INSERT INTO users (email, full_name, role_id, specialist_id, active)
     VALUES (v_email, v_name, v_role, v_spec, TRUE);
