@@ -145,16 +145,17 @@ export interface CategoryBar {
   ids: number[];
 }
 
-/** Costos reconocidos (VALIDADO + OK) del mes por categoría, de mayor a menor. */
+/** Costos reconocidos (VALIDADO + OK) del mes (o de varios meses) por categoría, de mayor a menor. */
 export function expensesByCategory(
   movements: EnrichedMovement[],
-  mes: string,
+  mes: string | string[],
   categoryNames: Map<number, string>,
   maxBars = 8,
 ): CategoryBar[] {
+  const months = new Set(Array.isArray(mes) ? mes : [mes]);
   const groups = new Map<number, EnrichedMovement[]>();
   for (const m of movements) {
-    if (!isEligible(m) || m.mes !== mes || m.record_type !== RECORD_TYPE.COSTO_RECONOCIDO) continue;
+    if (!isEligible(m) || !months.has(m.mes) || m.record_type !== RECORD_TYPE.COSTO_RECONOCIDO) continue;
     groups.set(m.cost_category_id, [...(groups.get(m.cost_category_id) ?? []), m]);
   }
   const bars: CategoryBar[] = [...groups.entries()].map(([categoryId, list]) => ({
@@ -190,7 +191,8 @@ export interface ResultsNarrative {
 
 const fmtMoney = (n: number) => `S/ ${Math.abs(n).toLocaleString('es-PE', { maximumFractionDigits: 0 })}`;
 
-export function buildNarrative(current: ResultsReport, previous: ResultsReport): ResultsNarrative {
+/** `scope` = cómo se nombra el periodo en las frases ("este mes", "en el periodo"). */
+export function buildNarrative(current: ResultsReport, previous: ResultsReport, scope = 'este mes'): ResultsNarrative {
   const c = current.totals;
   const p = previous.totals;
   const best = [...current.units].sort((a, b) => b.contribution - a.contribution)[0];
@@ -199,19 +201,19 @@ export function buildNarrative(current: ResultsReport, previous: ResultsReport):
 
   const incomePhrase = hasIncome && topIncome
     ? `${topIncome.unit} trae la mayor parte: ${Math.round((topIncome.income.amount / c.income) * 100)} % de los ingresos.`
-    : 'Este mes aún no hay ingresos reconocidos.';
+    : `${scope.charAt(0).toUpperCase()}${scope.slice(1)} aún no hay ingresos reconocidos.`;
   const contributionPhrase = hasIncome && best && best.contribution > 0
-    ? `${best.unit} es la unidad más rentable este mes (${fmtMoney(best.contribution)}).`
-    : 'Ninguna unidad deja contribución positiva este mes.';
+    ? `${best.unit} es la unidad más rentable ${scope} (${fmtMoney(best.contribution)}).`
+    : `Ninguna unidad deja contribución positiva ${scope}.`;
   const corp = current.corpSharedExpense.amount;
   const corpPhrase = corp === 0
-    ? 'No hay gasto compartido de CORP este mes.'
+    ? `No hay gasto compartido de CORP ${scope}.`
     : current.corpUnassigned > 0.005
       ? `${fmtMoney(current.corpUnassigned)} de ese gasto aún no se reparte entre unidades.`
       : 'Todo el gasto compartido está repartido entre las unidades.';
   const resultPhrase = c.finalResult >= 0
-    ? `La empresa gana ${fmtMoney(c.finalResult)} este mes${c.income ? ` (margen ${c.marginPct.toFixed(0)} %)` : ''}.`
-    : `La empresa pierde ${fmtMoney(c.finalResult)} este mes: los costos superan a los ingresos.`;
+    ? `La empresa gana ${fmtMoney(c.finalResult)} ${scope}${c.income ? ` (margen ${c.marginPct.toFixed(0)} %)` : ''}.`
+    : `La empresa pierde ${fmtMoney(c.finalResult)} ${scope}: los costos superan a los ingresos.`;
 
   return {
     income: { value: c.income, delta: pctChange(c.income, p.income), goodWhen: 'up', phrase: incomePhrase },

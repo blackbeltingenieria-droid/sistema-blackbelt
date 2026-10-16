@@ -1,23 +1,25 @@
-// features/results-cash/hooks/useMonthReport.ts
+// features/results-cash/hooks/useMonthReport.ts — reporte de un periodo (un mes, varios meses o todo).
 import { useCallback, useEffect, useState } from 'react';
-import { getMonthReport, type MonthReport } from '../services/results-service';
+import type { Period } from '../domain/period';
+import { getPeriodReport, type MonthReport } from '../services/results-service';
 
-export function useMonthReport(month: string) {
+export function useMonthReport(period: Period) {
   const [report, setReport] = useState<MonthReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const key = JSON.stringify(period);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setReport(await getMonthReport(month));
+      setReport(await getPeriodReport(JSON.parse(key) as Period));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo calcular el reporte.');
     } finally {
       setLoading(false);
     }
-  }, [month]);
+  }, [key]);
 
   useEffect(() => { void load(); }, [load]);
 

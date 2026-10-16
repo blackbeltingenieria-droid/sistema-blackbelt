@@ -215,3 +215,75 @@ export function computeCash(movements: EnrichedMovement[], mes: string, openingB
     netFlow: round2(netOf(month)),
   };
 }
+
+// ─── Varios meses (periodo) ─────────────────────────────────────────────────
+// Un periodo se calcula MES A MES (cada mes con su propio reparto CORP) y luego se suma.
+// Así el resultado de un rango siempre es la suma de los resultados de sus meses.
+
+const addTraced = (a: TracedAmount, b: TracedAmount): TracedAmount => ({ amount: round2(a.amount + b.amount), ids: [...a.ids, ...b.ids] });
+const EMPTY: TracedAmount = { amount: 0, ids: [] };
+
+/** Suma reportes mensuales en uno solo. `label` reemplaza al mes (p. ej. "2026-08..2026-10"). */
+export function combineResults(reports: ResultsReport[], label: string): ResultsReport {
+  const units: UnitResult[] = COMMERCIAL_UNIT_CODES.map((unit) => {
+    const list = reports.map((r) => r.units.find((u) => u.unit === unit)).filter((u): u is UnitResult => Boolean(u));
+    const income = list.reduce((a, u) => addTraced(a, u.income), EMPTY);
+    const directCosts = list.reduce((a, u) => addTraced(a, u.directCosts), EMPTY);
+    const attributableExpenses = list.reduce((a, u) => addTraced(a, u.attributableExpenses), EMPTY);
+    const contribution = round2(list.reduce((a, u) => a + u.contribution, 0));
+    const allocatedCommonExpense = round2(list.reduce((a, u) => a + u.allocatedCommonExpense, 0));
+    const finalResult = round2(list.reduce((a, u) => a + u.finalResult, 0));
+    return {
+      unit, income, directCosts, attributableExpenses, contribution, allocatedCommonExpense, finalResult,
+      allocationPct: 0, // se completa abajo: % efectivo del periodo = recibido / gasto CORP
+      marginPct: income.amount ? (finalResult / income.amount) * 100 : 0,
+    };
+  });
+  const corp = reports.reduce((a, r) => addTraced(a, r.corpSharedExpense), EMPTY);
+  for (const u of units) u.allocationPct = corp.amount ? round2((u.allocatedCommonExpense / corp.amount) * 100) : 0;
+  const sum = (f: (r: ResultsReport) => number) => round2(reports.reduce((a, r) => a + f(r), 0));
+  const income = sum((r) => r.totals.income);
+  const directCosts = sum((r) => r.totals.directCosts);
+  const attributableExpenses = sum((r) => r.totals.attributableExpenses);
+  const finalResult = sum((r) => r.totals.finalResult);
+  const incomeMinusAll = round2(income - directCosts - attributableExpenses - corp.amount);
+  const difference = round2(incomeMinusAll - finalResult);
+  return {
+    mes: label,
+    units,
+    corpSharedExpense: corp,
+    corpUnassigned: sum((r) => r.corpUnassigned),
+    totals: {
+      income, directCosts, attributableExpenses,
+      contribution: sum((r) => r.totals.contribution),
+      allocatedCommonExpense: sum((r) => r.totals.allocatedCommonExpense),
+      finalResult,
+      marginPct: income ? (finalResult / income) * 100 : 0,
+    },
+    reconciliation: { incomeMinusAllExpenses: incomeMinusAll, sumFinalPlusCorpUnassigned: finalResult, difference, ok: Math.abs(difference) < 0.005 },
+  };
+}
+
+/** Resultados de varios meses: cada mes con su reparto (`pctsOf`) y luego sumados. */
+export function computeResultsForMonths(
+  movements: EnrichedMovement[], months: string[], pctsOf: (mes: string) => AllocationPcts, label?: string,
+): ResultsReport {
+  if (months.length === 1) return computeResults(movements, months[0], pctsOf(months[0]));
+  return combineResults(months.map((mes) => computeResults(movements, mes, pctsOf(mes))), label ?? `${months[0]}..${months.at(-1) ?? ''}`);
+}
+
+/** Caja de un periodo: entradas y salidas DEL PERIODO (`month`) y saldo acumulado al último mes.
+ *  `periodOpening` = dinero que había al empezar el periodo. */
+export function computeCashForMonths(movements: EnrichedMovement[], months: string[], openingBalance: number): CashReport & { periodOpening: number } {
+  const last = months.at(-1) ?? '';
+  const base = computeCash(movements, last, openingBalance);
+  const set = new Set(months);
+  const eligible = movements.filter((m) => isEligible(m) && set.has(m.mes));
+  const pick = (type: EnrichedMovement['record_type']) => sumTraced(eligible.filter((m) => m.record_type === type));
+  const month: CashFlows = {
+    cobros: pick(RECORD_TYPE.COBRO), aportes: pick(RECORD_TYPE.APORTE_SOCIO), prestamos: pick(RECORD_TYPE.PRESTAMO_RECIBIDO),
+    pagos: pick(RECORD_TYPE.PAGO), retiros: pick(RECORD_TYPE.RETIRO_SOCIO), pagosPrestamo: pick(RECORD_TYPE.PAGO_PRESTAMO),
+  };
+  const netFlow = round2(netOf(month));
+  return { ...base, month, netFlow, periodOpening: round2(base.closingBalance - netFlow) };
+}
