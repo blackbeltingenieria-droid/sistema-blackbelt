@@ -1,7 +1,7 @@
 // features/auth/services/auth-service.ts
-// Sesión y usuarios. IMPORTANTE: mientras la base use políticas abiertas (anon_all_*) y no
-// exista Supabase Auth, el rol ordena la interfaz y protege las rutas, pero NO es una barrera
-// de seguridad de datos. La integración con Supabase Auth queda como pendiente.
+// Usuarios del sistema (tabla users + rol). En la web se entra con correo y contraseña
+// (login-service.ts) y la base solo responde a usuarios activos con sesión (migración 20261019000001).
+// El rol (Admin / Colaborador) decide qué pantallas se ven.
 
 import { isSupabaseConfigured, supabase } from '../../../lib/supabase';
 import { ROLE_CODE } from '../../../types/database';
@@ -29,8 +29,9 @@ function toAuthUser(u: DbUser, roles: DbRole[]): AuthUser | null {
   return { id: u.id, email: u.email, fullName: u.full_name, role: role.code, specialistId: u.specialist_id };
 }
 
-/** Usuarios activos con los que se puede entrar. */
-export async function getLoginUsers(): Promise<AuthUser[]> {
+/** Usuarios activos con los que se puede entrar. `allowBootstrap`: si no hay ninguno, devuelve el
+ *  acceso inicial de administrador (solo sin contraseña; con contraseña nunca). */
+export async function getLoginUsers({ allowBootstrap = true }: { allowBootstrap?: boolean } = {}): Promise<AuthUser[]> {
   if (!isSupabaseConfigured()) {
     return userStore.users.filter((u) => u.active).map((u) => toAuthUser(u, SEED_ROLES)).filter((u): u is AuthUser => u !== null);
   }
@@ -39,11 +40,14 @@ export async function getLoginUsers(): Promise<AuthUser[]> {
     sb().from('roles').select('*'),
   ]);
   // Tablas aún sin migrar → acceso inicial de administrador (no bloquea al equipo).
-  if (usersRes.error || rolesRes.error) return [BOOTSTRAP_ADMIN];
+  if (usersRes.error || rolesRes.error) {
+    if (!allowBootstrap) throw new Error(`No se pudieron leer los usuarios: ${(usersRes.error ?? rolesRes.error).message}`);
+    return [BOOTSTRAP_ADMIN];
+  }
   const list = ((usersRes.data ?? []) as DbUser[])
     .map((u) => toAuthUser(u, (rolesRes.data ?? []) as DbRole[]))
     .filter((u): u is AuthUser => u !== null);
-  return list.length ? list : [BOOTSTRAP_ADMIN];
+  return list.length || !allowBootstrap ? list : [BOOTSTRAP_ADMIN];
 }
 
 export function readStoredUserId(): number | null {

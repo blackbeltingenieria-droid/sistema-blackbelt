@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "dev:demo": "vite --mode demo",
     "dev:vacio": "vite --mode vacio",
+    "dev:login": "vite --mode login",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "seed:demo": "tsx scripts/seed-demo.ts",

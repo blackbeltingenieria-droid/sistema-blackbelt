@@ -11,9 +11,13 @@ interface SidebarProps {
   userName: string;
   roleLabel: string;
   onSignOut: () => void;
+  /** "Salir" (con contraseña) o "Cambiar" (selector local). */
+  signOutLabel?: string;
+  /** Si se da, muestra «Mi contraseña». */
+  onChangePassword?: () => void;
 }
 
-export function Sidebar({ items, userName, roleLabel, onSignOut }: SidebarProps) {
+export function Sidebar({ items, userName, roleLabel, onSignOut, signOutLabel = 'Cambiar', onChangePassword }: SidebarProps) {
   return (
     <aside className="hidden lg:flex fixed inset-y-0 left-0 w-[240px] bg-ink flex-col z-20">
       {/* Logo */}
@@ -70,9 +74,14 @@ export function Sidebar({ items, userName, roleLabel, onSignOut }: SidebarProps)
             <p className="bb-body text-white/40 text-[10px] truncate">{roleLabel}</p>
           </div>
           <button type="button" onClick={onSignOut} className="bb-body text-[11px] text-white/60 hover:text-white underline underline-offset-2">
-            Cambiar
+            {signOutLabel}
           </button>
         </div>
+        {onChangePassword && (
+          <button type="button" onClick={onChangePassword} className="mt-2 bb-body text-[11px] text-white/60 hover:text-white underline underline-offset-2" data-testid="my-password">
+            Mi contraseña
+          </button>
+        )}
       </div>
     </aside>
   );
