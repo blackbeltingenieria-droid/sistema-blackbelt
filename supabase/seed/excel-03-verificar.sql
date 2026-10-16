@@ -22,5 +22,13 @@ FROM (
   UNION ALL
   SELECT 'Falta cobrar' AS concepto, 3100::numeric AS excel, (SELECT (SELECT coalesce(sum(contracted_amount), 0) FROM projects) - (SELECT coalesce(sum(amount), 0) FROM project_payments))::numeric AS en_la_base
   UNION ALL
+  SELECT 'Adelantos cobrados en octubre 2025' AS concepto, 3550::numeric AS excel, (SELECT coalesce(sum(amount), 0) FROM movements WHERE status = 'VALIDADO' AND record_type = 'COBRO' AND movement_date BETWEEN '2025-10-01' AND '2025-10-31')::numeric AS en_la_base
+  UNION ALL
+  SELECT 'Mano de obra: monto requerido (TABLA_M.O)' AS concepto, 4700::numeric AS excel, (SELECT coalesce(sum(agreed_amount), 0) FROM labor_contracts WHERE active)::numeric AS en_la_base
+  UNION ALL
+  SELECT 'Mano de obra: monto pagado' AS concepto, 3300::numeric AS excel, (SELECT coalesce(sum(m.amount), 0) FROM movements m WHERE m.status = 'VALIDADO' AND m.record_type = 'COSTO_RECONOCIDO' AND m.notes LIKE '%Mano de obra CMO-%' AND EXISTS (SELECT 1 FROM movements p WHERE p.record_type = 'PAGO' AND p.status = 'VALIDADO' AND p.notes = 'Contrapartida de ' || m.movement_code))::numeric AS en_la_base
+  UNION ALL
+  SELECT 'Mano de obra: falta pagar' AS concepto, 1400::numeric AS excel, (SELECT (SELECT coalesce(sum(agreed_amount), 0) FROM labor_contracts WHERE active) - (SELECT coalesce(sum(m.amount), 0) FROM movements m WHERE m.status = 'VALIDADO' AND m.record_type = 'COSTO_RECONOCIDO' AND m.notes LIKE '%Mano de obra CMO-%' AND EXISTS (SELECT 1 FROM movements p WHERE p.record_type = 'PAGO' AND p.status = 'VALIDADO' AND p.notes = 'Contrapartida de ' || m.movement_code)))::numeric AS en_la_base
+  UNION ALL
   SELECT 'Resultado (ingresos − egresos)' AS concepto, 400.27::numeric AS excel, (SELECT (SELECT coalesce(sum(amount), 0) FROM movements WHERE status = 'VALIDADO' AND record_type = 'INGRESO_RECONOCIDO') - (SELECT coalesce(sum(amount), 0) FROM movements WHERE status = 'VALIDADO' AND record_type = 'COSTO_RECONOCIDO'))::numeric AS en_la_base
 ) x;

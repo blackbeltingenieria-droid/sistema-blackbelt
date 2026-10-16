@@ -4,12 +4,12 @@
 --
 -- Qué hace:
 --   1. Copia cada tabla de datos a "respaldo_20261016_<tabla>" (para poder recuperar cualquier cosa).
---   2. Vacía: work_hours, tasks, sprints, movements, budgets, corp_allocation, project_payments, projects, clients, investments.
+--   2. Vacía: labor_contracts, work_hours, tasks, sprints, movements, budgets, corp_allocation, project_payments, projects, clients, investments.
 --   3. Quita los especialistas que no están en el Excel (Henry Torres Rivera se queda).
 -- NO toca: usuarios, roles, catálogos (unidades, áreas, categorías) ni la configuración.
 --
 -- SEGURIDAD: no hace nada hasta que cambies 'NO' por 'SI' en la línea marcada.
--- Requiere las migraciones 20261016000001 y 20261017000001 ya aplicadas.
+-- Requiere las migraciones 20261016000001, 20261017000001 y 20261018000001 ya aplicadas.
 -- ==============================================================================
 
 DO $$
@@ -23,16 +23,19 @@ BEGIN
   IF to_regclass('investments') IS NULL THEN
     RAISE EXCEPTION 'Falta la migración 20261017000001_investments.sql. Aplícala primero.';
   END IF;
+  IF to_regclass('labor_contracts') IS NULL THEN
+    RAISE EXCEPTION 'Falta la migración 20261018000001_labor_contracts.sql. Aplícala primero.';
+  END IF;
 
   -- transactions (esquema anterior) se respalda porque al borrar proyectos su enlace quedaría vacío.
-  FOREACH t IN ARRAY ARRAY['work_hours', 'tasks', 'sprints', 'movements', 'budgets', 'corp_allocation', 'project_payments', 'projects', 'clients', 'investments', 'specialists', 'app_settings', 'users', 'transactions'] LOOP
+  FOREACH t IN ARRAY ARRAY['labor_contracts', 'work_hours', 'tasks', 'sprints', 'movements', 'budgets', 'corp_allocation', 'project_payments', 'projects', 'clients', 'investments', 'specialists', 'app_settings', 'users', 'transactions'] LOOP
     IF to_regclass(t) IS NOT NULL AND to_regclass('respaldo_20261016_' || t) IS NULL THEN
       EXECUTE format('CREATE TABLE %I AS SELECT * FROM %I', 'respaldo_20261016_' || t, t);
       EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', 'respaldo_20261016_' || t);  -- sin políticas: no se ve desde la app
     END IF;
   END LOOP;
 
-  FOREACH t IN ARRAY ARRAY['work_hours', 'tasks', 'sprints', 'movements', 'budgets', 'corp_allocation', 'project_payments', 'projects', 'clients', 'investments'] LOOP
+  FOREACH t IN ARRAY ARRAY['labor_contracts', 'work_hours', 'tasks', 'sprints', 'movements', 'budgets', 'corp_allocation', 'project_payments', 'projects', 'clients', 'investments'] LOOP
     IF to_regclass(t) IS NOT NULL THEN EXECUTE format('DELETE FROM %I', t); END IF;
   END LOOP;
 
