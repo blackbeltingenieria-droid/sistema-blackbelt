@@ -56,19 +56,6 @@ test.describe('Admin: flujos principales', () => {
     await noHorizontalScroll(page);
   });
 
-  test('mover una tarea en Kanban', async ({ page }) => {
-    await go(page, 'Kanban');
-    await page.locator('a[href^="/kanban/"]').first().click();
-    const tabs = page.locator('[role="tablist"][aria-label="Columnas del tablero"]');
-    await expect(tabs).toBeAttached();
-    const before = await tabs.textContent();
-    const btn = page.getByRole('button', { name: /^Mover a / }).locator('visible=true').last();
-    await expect(btn).toBeVisible();
-    await btn.click();
-    await expect.poll(async () => tabs.textContent()).not.toBe(before); // los contadores por columna cambian
-    await noHorizontalScroll(page);
-  });
-
   test('registrar horas-hombre de una hora a otra, con almuerzo', async ({ page }) => {
     await go(page, 'Horas-hombre');
     await page.getByLabel('Persona').selectOption({ index: 1 });
@@ -104,7 +91,31 @@ test.describe('Admin: flujos principales', () => {
   });
 });
 
+// Kanban y colaboradores: los datos reales del Excel no traen tareas ni colaboradores → datos demo (5174).
+test.describe('Kanban (datos demo)', () => {
+  test.use({ baseURL: 'http://127.0.0.1:5174' });
+  test.beforeEach(async ({ page }) => { await login(page, 'Henry Torres'); });
+
+  test('mover una tarea en Kanban', async ({ page }) => {
+    await go(page, 'Kanban');
+    await page.locator('a[href^="/kanban/"]').first().click();
+    const tabs = page.locator('[role="tablist"][aria-label="Columnas del tablero"]');
+    await expect(tabs).toBeAttached();
+    // En celular/tablet se ve una columna a la vez: se elige una que tenga tareas.
+    const withTasks = tabs.getByRole('tab').filter({ hasText: /^[1-9]/ }).first();
+    if (await withTasks.isVisible()) await withTasks.click();
+    const before = await tabs.textContent();
+    const btn = page.getByRole('button', { name: /^Mover a / }).locator('visible=true').last();
+    await expect(btn).toBeVisible();
+    await btn.click();
+    await expect.poll(async () => tabs.textContent()).not.toBe(before); // los contadores por columna cambian
+    await noHorizontalScroll(page);
+  });
+
+});
+
 test.describe('Colaborador: acceso restringido', () => {
+  test.use({ baseURL: 'http://127.0.0.1:5174' });
   test('solo ve su panel y Kanban; /movements redirige', async ({ page }) => {
     await login(page, 'Marco');
     await expect(page).toHaveURL(/\/my$/);
