@@ -76,6 +76,8 @@ export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, o
     .filter((p) => p.status !== 'cancelado' || p.id === v.projectId)
     .sort((a, b) => Number(pendingFor(b) > 0) - Number(pendingFor(a) > 0) || pendingFor(b) - pendingFor(a));
   const paymentNote = isIncome && project && v.settled ? projectPaymentNote(pendingFor(project), v.amount) : null;
+  // Editando un cobro ya guardado de este proyecto: sus cifras ya lo cuentan como pagado.
+  const includesThis = Boolean(project && editingCode && initial?.kind === 'INGRESO' && initial.settled && initial.projectId === project.id);
   function fillFromProject(p: ProjectRow) {
     const f = projectIncomeFill(p, pendingFor(p));
     setAmountText(String(f.amount));
@@ -225,17 +227,18 @@ export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, o
               <option value="">No, es otra venta</option>
               {incomeProjects.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.code ?? `#${p.id}`} · {p.projectName} ({p.clientName}) — {pendingFor(p) > 0 ? `falta ${formatPen(pendingFor(p))}` : 'pagado'}
+                  {p.code ?? `#${p.id}`} · {p.projectName} ({p.clientName}) — {p.pendingBalance > 0 ? `falta ${formatPen(p.pendingBalance)}` : 'pagado'}
                 </option>
               ))}
             </select>
             {project && (
               <div className="bg-paper border border-line rounded-card p-3" data-testid="project-balance">
                 <dl className="grid grid-cols-1 sm:grid-cols-3 gap-1 sm:gap-2 sm:text-center">
+                  {/* Lo que dice el proyecto HOY (si se está editando un cobro, ya lo incluye). */}
                   {([
                     ['Contrato', project.contractedAmount, 'text-ink'],
-                    ['Ya pagó', project.contractedAmount - pendingFor(project), 'text-belt-en_revision'],
-                    ['Falta', pendingFor(project), 'text-rust font-semibold'],
+                    ['Ya pagó', project.contractedAmount - project.pendingBalance, 'text-belt-en_revision'],
+                    ['Falta', project.pendingBalance, project.pendingBalance > 0 ? 'text-rust font-semibold' : 'text-ink font-semibold'],
                   ] as const).map(([label, value, color]) => (
                     <div key={label} className="flex sm:block justify-between items-baseline gap-2">
                       <dt className="bb-label-xs text-ink-soft">{label}</dt>
@@ -243,7 +246,10 @@ export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, o
                     </div>
                   ))}
                 </dl>
-                {pendingFor(project) > 0 && v.amount !== pendingFor(project) && (
+                {includesThis && (
+                  <p className="bb-body text-xs text-ink-soft mt-2" data-testid="project-includes-this">Ya incluye este cobro de {formatPen(initial?.amount ?? 0)}.</p>
+                )}
+                {!includesThis && pendingFor(project) > 0 && v.amount !== pendingFor(project) && (
                   <button type="button" data-testid="fill-pending" onClick={() => fillFromProject(project)}
                     className="w-full mt-3 min-h-[44px] sm:min-h-[38px] bg-gold text-ink rounded-card bb-body text-sm font-semibold">
                     Cobrar lo que falta: {formatPen(pendingFor(project))}
@@ -264,7 +270,7 @@ export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, o
             <select id="q-labor" className="bb-input !bg-paper" value={laborCode ?? ''} onChange={(e) => chooseLabor(e.target.value)}>
               <option value="">No</option>
               {laborList.map((o) => (
-                <option key={o.code} value={o.code}>{o.worker} · {o.service} — {laborPending(o) > 0 ? `falta ${formatPen(laborPending(o))}` : 'pagado'}</option>
+                <option key={o.code} value={o.code}>{o.worker} · {o.service} — {o.pending > 0 ? `falta ${formatPen(o.pending)}` : 'pagado'}</option>
               ))}
             </select>
             {labor && laborLeft !== null && (

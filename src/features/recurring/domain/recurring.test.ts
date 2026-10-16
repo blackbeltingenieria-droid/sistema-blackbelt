@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SEED_BUSINESS_UNITS, SEED_COST_CATEGORIES } from '../../catalogs/services/seed-data';
 import { EXCEL_DB_MOVEMENTS } from '../../excel-data/excel-local';
-import { EXCEL_EGRESOS } from '../../excel-data/excel-raw';
+import { EXCEL_EGRESOS, EXCEL_TOTALES } from '../../excel-data/excel-raw';
 import { enrichMovement } from '../../movements/domain/movement-rules';
 import { buildRecurringReport, serviceKey } from './recurring';
 
@@ -15,7 +15,7 @@ describe('servicios y marketing', () => {
     const r = buildRecurringReport(movs, catCode, ['servicios', 'marketing']);
     expect(r.groupTotals.servicios).toBe(119.7);            // Bitel × 3
     expect(r.groupTotals.marketing).toBe(326.4);            // Publicidad FB 250.06 + 76.34
-    expect(r.total).toBe(Math.round((119.7 + 326.4) * 100) / 100);
+    expect(r.total).toBe(EXCEL_TOTALES.serviciosPublicidad);   // hoja SERVICIOS Y PUBLICIDAD (corregida)
     const bitel = r.services.find((s) => s.key === 'BITEL');
     expect(bitel).toMatchObject({ recurring: true, lastAmount: 39.9, change: 0, nextDate: '2026-11-14' });
     expect(Object.keys(bitel?.byMonth ?? {})).toEqual(['2026-08', '2026-09', '2026-10']);
@@ -24,6 +24,7 @@ describe('servicios y marketing', () => {
   it('herramientas digitales = grupo HERRAMIENTAS DIGITALES del Excel', () => {
     const r = buildRecurringReport(movs, catCode, ['herramientas']);
     expect(r.total).toBe(excelSum(['HERRAMIENTAS DIGITALES']));
+    expect(r.total).toBe(EXCEL_TOTALES.herramientas);           // hoja HERRAMIENTAS (corregida)
     expect(r.months).toEqual(['2026-08', '2026-09', '2026-10']);
     expect(r.services.find((s) => s.key === 'CANVA')?.recurring).toBe(true);
   });

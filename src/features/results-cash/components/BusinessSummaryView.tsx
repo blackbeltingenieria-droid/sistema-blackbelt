@@ -81,6 +81,12 @@ export function BusinessSummaryView({ mes, label, isMonth = true, summary: s, pe
         Desde el inicio hasta {monthLabel(mes).toLowerCase()}: vendiste <strong className="text-ink">{formatPen(s.sinceStart.income)}</strong>,
         gastaste <strong className="text-ink">{formatPen(s.sinceStart.spent)}</strong> y {s.sinceStart.result >= 0 ? 'ganaste' : 'perdiste'}{' '}
         <strong className={s.sinceStart.result >= 0 ? 'text-belt-en_revision' : 'text-rust'}>{formatPen(Math.abs(s.sinceStart.result))}</strong>.
+        {s.projected && (s.projected.receivable > 0 || s.projected.laborPending > 0) && (
+          <span className="block mt-1" data-testid="summary-projected">
+            Si cobras lo que te deben ({formatPen(s.projected.receivable)}) y pagas lo que debes al equipo ({formatPen(s.projected.laborPending)}),{' '}
+            {s.projected.result >= 0 ? 'ganarías' : 'perderías'} <strong className={s.projected.result >= 0 ? 'text-belt-en_revision' : 'text-rust'}>{formatPen(Math.abs(s.projected.result))}</strong>.
+          </span>
+        )}
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">

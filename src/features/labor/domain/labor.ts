@@ -61,6 +61,7 @@ export interface LaborRow {
   status: LaborStatus;
   daysLeft: number | null;    // días hasta la fecha de culminación (negativo = vencido)
   payments: LaborPayment[];   // pagos hechos, del más antiguo al más reciente
+  unpaid: LaborPayment[];     // anotados como "aún lo debo" (sin pago todavía)
   lastPaymentDate: string | null;
   ids: number[];              // movimientos enlazados (trazabilidad)
 }
@@ -84,11 +85,12 @@ export function buildLaborRow(c: DbLaborContract, movements: EnrichedMovement[],
     if (code && isEligible(m) && m.record_type === RECORD_TYPE.PAGO) pairs.set(code, m);
   }
   const payments: LaborPayment[] = [];
+  const unpaid: LaborPayment[] = [];
   let owed = 0;
   for (const m of linked) {
     const pay = pairs.get(m.movement_code);
     if (pay) payments.push({ id: m.id, code: m.movement_code, date: pay.movement_date, amount: m.amount, method: pay.payment_method ?? m.payment_method });
-    else owed += m.amount;
+    else { owed += m.amount; unpaid.push({ id: m.id, code: m.movement_code, date: m.movement_date, amount: m.amount, method: null }); }
   }
   payments.sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
   const paid = r2(payments.reduce((a, p) => a + p.amount, 0));
@@ -100,7 +102,7 @@ export function buildLaborRow(c: DbLaborContract, movements: EnrichedMovement[],
   return {
     contract: c, paid, owedRegistered: r2(owed), pending,
     paidPct: c.agreed_amount ? Math.min(100, r2((paid / c.agreed_amount) * 100)) : 0,
-    status, daysLeft, payments, lastPaymentDate: payments.at(-1)?.date ?? null,
+    status, daysLeft, payments, unpaid, lastPaymentDate: payments.at(-1)?.date ?? null,
     ids: [...linked.map((m) => m.id), ...linked.flatMap((m) => { const p = pairs.get(m.movement_code); return p ? [p.id] : []; })],
   };
 }

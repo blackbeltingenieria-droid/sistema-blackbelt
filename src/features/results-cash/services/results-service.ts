@@ -16,6 +16,8 @@ import {
 } from '../domain/calculations';
 import { periodLabel, periodMonths, previousLabel, previousMonths, type Period } from '../domain/period';
 import { currentMonth } from '../../../lib/format';
+import { buildLaborReport } from '../../labor/domain/labor';
+import { getLaborContracts } from '../../labor/services/labor-service';
 import {
   cashEvolution, lastMonths, monthlyEvolution, previousMonth,
   type CashPoint, type MonthlyPoint,
@@ -65,6 +67,7 @@ export interface MonthReport {
   cashByMonth: CashPoint[];
   budgets: DbBudget[];              // metas del mes (para el aviso de presupuesto del Resumen)
   projectsReceivable: number;       // lo que falta pagar de los proyectos no cancelados
+  laborPending: number;             // lo que falta pagar al equipo (Mano de obra)
 }
 
 /** Un solo mes (lo usa también el Dashboard). */
@@ -74,9 +77,10 @@ export async function getMonthReport(mes: string): Promise<MonthReport> {
 
 /** Resultados y caja de un periodo: un mes, varios meses, un año o todo desde el inicio. */
 export async function getPeriodReport(period: Period, current = currentMonth()): Promise<MonthReport> {
-  const [movements, allocations, opening, projects] = await Promise.all([
-    getMovements(), getAllocationsByMonth(), getOpeningCash(), getProjectRows().catch(() => []),
+  const [movements, allocations, opening, projects, contracts] = await Promise.all([
+    getMovements(), getAllocationsByMonth(), getOpeningCash(), getProjectRows().catch(() => []), getLaborContracts().catch(() => []),
   ]);
+  const laborPending = buildLaborReport(contracts, movements, `${current}-28`).totals.pending;
   const dataMonths = [...new Set(movements.map((m) => m.mes).filter(Boolean))].sort();
   const months = periodMonths(period, dataMonths, current);
   const mes = months[months.length - 1];
@@ -105,6 +109,7 @@ export async function getPeriodReport(period: Period, current = currentMonth()):
     movements,
     budgets,
     projectsReceivable,
+    laborPending,
     pendingReview: movements.filter((m) => m.control !== 'OK').length,
     validMovementsInMonth: movements.filter((m) => set.has(m.mes) && m.status === 'VALIDADO' && m.control === 'OK').length,
   };
