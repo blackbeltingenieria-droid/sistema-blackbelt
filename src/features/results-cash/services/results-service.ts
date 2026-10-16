@@ -4,8 +4,11 @@
 
 import { isSupabaseConfigured, supabase } from '../../../lib/supabase';
 import { SETTING_KEY, type DbBudget } from '../../../types/database';
+import { demoData } from '../../demo/demo-data';
+import { EXCEL_OPENING_CASH } from '../../excel-data/excel-local';
 import { getAllocationsByMonth, getBudgets } from '../../budgets-allocation/services/budget-service';
 import { getMovements } from '../../movements/services/movement-service';
+import { getProjectRows } from '../../clients-projects/services/project-service';
 import type { EnrichedMovement } from '../../movements/types';
 import {
   computeCash, computeResults, summarizeAllocation,
@@ -20,7 +23,8 @@ import {
 const sb = () => supabase as any;
 
 const DEFAULT_OPENING_CASH = 500; // 00_INICIO del Excel oficial
-const mem = { openingCash: DEFAULT_OPENING_CASH };
+// Local: el Excel real calcula la caja sin saldo inicial (0); la demo usa el de la plantilla (500).
+const mem = { openingCash: demoData ? DEFAULT_OPENING_CASH : EXCEL_OPENING_CASH };
 
 export async function getOpeningCash(): Promise<number> {
   if (!isSupabaseConfigured()) return mem.openingCash;
@@ -53,10 +57,15 @@ export interface MonthReport {
   evolution: MonthlyPoint[];        // últimos 6 meses
   cashByMonth: CashPoint[];         // últimos 6 meses
   budgets: DbBudget[];              // metas del mes (para el aviso de presupuesto del Resumen)
+  projectsReceivable: number;       // lo que falta pagar de los proyectos no cancelados
 }
 
 export async function getMonthReport(mes: string): Promise<MonthReport> {
-  const [movements, allocations, opening, budgets] = await Promise.all([getMovements(), getAllocationsByMonth(), getOpeningCash(), getBudgets(mes)]);
+  const [movements, allocations, opening, budgets, projects] = await Promise.all([
+    getMovements(), getAllocationsByMonth(), getOpeningCash(), getBudgets(mes), getProjectRows().catch(() => []),
+  ]);
+  const projectsReceivable = Math.round(projects.filter((p) => p.status !== 'cancelado')
+    .reduce((a, p) => a + Math.max(0, p.pendingBalance), 0) * 100) / 100;
   const pcts = allocations[mes]?.pcts ?? {};
   const months = lastMonths(mes, 6);
   return {
@@ -69,6 +78,7 @@ export async function getMonthReport(mes: string): Promise<MonthReport> {
     cashByMonth: cashEvolution(movements, opening, months),
     movements,
     budgets,
+    projectsReceivable,
     pendingReview: movements.filter((m) => m.control !== 'OK').length,
     validMovementsInMonth: movements.filter((m) => m.mes === mes && m.status === 'VALIDADO' && m.control === 'OK').length,
   };

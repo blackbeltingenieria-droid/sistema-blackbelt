@@ -72,6 +72,12 @@ export function BusinessSummaryView({ mes, summary: s, pendingReview, onTrace, b
         </Card>
       </div>
 
+      <p className="bb-body text-xs text-ink-soft bg-paper border border-line rounded-card px-4 py-2" data-testid="summary-since-start">
+        Desde el inicio hasta {monthLabel(mes).toLowerCase()}: vendiste <strong className="text-ink">{formatPen(s.sinceStart.income)}</strong>,
+        gastaste <strong className="text-ink">{formatPen(s.sinceStart.spent)}</strong> y {s.sinceStart.result >= 0 ? 'ganaste' : 'perdiste'}{' '}
+        <strong className={s.sinceStart.result >= 0 ? 'text-belt-en_revision' : 'text-rust'}>{formatPen(Math.abs(s.sinceStart.result))}</strong>.
+      </p>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         {/* 3. ¿En qué se fue el dinero? */}
         <Card>

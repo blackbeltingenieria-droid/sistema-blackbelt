@@ -18,9 +18,10 @@ export default defineConfig({
     { name: 'tablet-768', use: { ...use, viewport: { width: 768, height: 1024 } } },
     { name: 'desktop-1280', use: { ...use, viewport: { width: 1280, height: 800 } } },
   ],
-  // 5173: datos seed básicos · 5174: modo demo (datos de demostración en memoria)
+  // 5173: datos reales del Excel · 5174: modo demo · 5175: modo vacío (para cargar el Excel por la página)
   webServer: [
     { command: 'npm run dev -- --host 127.0.0.1 --port 5173', url: 'http://127.0.0.1:5173', reuseExistingServer: true, timeout: 60_000 },
     { command: 'npm run dev:demo -- --host 127.0.0.1 --port 5174', url: 'http://127.0.0.1:5174', reuseExistingServer: true, timeout: 60_000 },
+    { command: 'npm run dev:vacio -- --host 127.0.0.1 --port 5175', url: 'http://127.0.0.1:5175', reuseExistingServer: true, timeout: 60_000 },
   ],
 });

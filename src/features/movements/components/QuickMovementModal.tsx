@@ -84,23 +84,35 @@ export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, o
   const conceptOptions = memory
     ? [...memory.values()].filter((m) => m.kind === v.kind).map((m) => m.concept).slice(0, 40)
     : [];
+  // Solo se rellena lo que la persona aún no eligió: nunca se pisa un proyecto, unidad, categoría,
+  // monto o medio de pago que ya puso a mano.
+  const [methodTouched, setMethodTouched] = useState(Boolean(initial));
   function onConcept(text: string) {
     const m = !editingCode && memory ? findConcept(memory, text) : undefined;
     if (!m || m.kind !== v.kind) { patch({ concept: text }); setFilledFrom(null); return; }
-    const projectRow = m.projectId ? catalogs.projects.find((p) => p.id === m.projectId) : undefined;
+    const destinationChosen = v.projectId !== null || v.unitId !== null;
+    const projectRow = !destinationChosen && m.projectId ? catalogs.projects.find((p) => p.id === m.projectId) : undefined;
     const useAmount = !(v.amount > 0) && !(m.kind === 'INGRESO' && projectRow);
+    const useCategory = v.categoryId === null && m.categoryId !== null;
+    const useMethod = !methodTouched && m.paymentMethod !== null;
     if (useAmount) setAmountText(String(m.amount));
     setV((prev) => ({
       ...prev, concept: text,
       amount: useAmount ? m.amount : prev.amount,
-      unitId: m.unitId, projectId: m.projectId, categoryId: m.categoryId,
-      paymentMethod: m.paymentMethod ?? prev.paymentMethod, counterparty: m.counterparty ?? prev.counterparty,
-      settled: m.settled,
+      ...(destinationChosen ? {} : { unitId: m.unitId, projectId: m.projectId }),
+      categoryId: useCategory ? m.categoryId : prev.categoryId,
+      paymentMethod: useMethod ? m.paymentMethod : prev.paymentMethod,
+      counterparty: prev.counterparty ?? m.counterparty,
     }));
     if (m.kind === 'INGRESO' && projectRow && pendingFor(projectRow) > 0 && !(v.amount > 0)) fillFromProject(projectRow);
-    const cat = m.categoryId ? catalogs.categories.find((c) => c.id === m.categoryId) : undefined;
-    const unitName = m.unitId ? catalogs.units.find((u) => u.id === m.unitId)?.name : 'toda la empresa';
-    setFilledFrom(`Rellené con lo de la última vez: ${useAmount ? formatPen(m.amount) + ' · ' : ''}${m.kind === 'EGRESO' && cat ? (CATEGORY_SHORT[cat.code] ?? cat.name) + ' · ' : ''}${unitName}${m.paymentMethod ? ' · ' + m.paymentMethod : ''}. Revisa y guarda.`);
+    const cat = useCategory ? catalogs.categories.find((c) => c.id === m.categoryId) : undefined;
+    const parts = [
+      useAmount ? formatPen(m.amount) : null,
+      m.kind === 'EGRESO' && cat ? (CATEGORY_SHORT[cat.code] ?? cat.name) : null,
+      destinationChosen ? null : (m.unitId ? catalogs.units.find((u) => u.id === m.unitId)?.name : 'toda la empresa'),
+      useMethod ? m.paymentMethod : null,
+    ].filter(Boolean);
+    setFilledFrom(parts.length ? `Rellené con lo de la última vez: ${parts.join(' · ')}. Revisa y guarda.` : null);
   }
   const setKind = (kind: QuickKind) => patch({ kind, categoryId: null });
 
@@ -287,7 +299,7 @@ export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, o
             <div className="flex flex-wrap gap-2">
               {PAYMENT_METHODS.map((m) => (
                 <button key={m} type="button" aria-pressed={v.paymentMethod === m}
-                  onClick={() => patch({ paymentMethod: v.paymentMethod === m ? null : m })} className={chip(v.paymentMethod === m)}>
+                  onClick={() => { setMethodTouched(true); patch({ paymentMethod: v.paymentMethod === m ? null : m }); }} className={chip(v.paymentMethod === m)}>
                   {m}
                 </button>
               ))}

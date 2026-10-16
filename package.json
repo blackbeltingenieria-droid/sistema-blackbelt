@@ -9,11 +9,13 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "dev:demo": "vite --mode demo",
+    "dev:vacio": "vite --mode vacio",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "seed:demo:clean": "tsx scripts/seed-demo.ts --clean",
-    "seed:demo:sql": "tsx scripts/seed-demo.ts --sql"
+    "seed:demo:sql": "tsx scripts/seed-demo.ts --sql",
+    "seed:excel:sql": "tsx scripts/seed-excel-sql.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",

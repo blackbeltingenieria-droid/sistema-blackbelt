@@ -10,7 +10,7 @@ test.describe('Mi panel del Admin', () => {
     await expect(page.getByText('Horas del mes (todos)')).toBeVisible();
     await expect(page.getByText('Proyectos activos')).toBeVisible();
     await expect(page.getByText('Por validar')).toBeVisible();
-    await expect(page.getByTestId('alerts')).toContainText('control distinto de OK');
+    await expect(page.getByTestId('alerts')).toContainText('Reparto CORP sin definir'); // Excel real: gasto común sin repartir
     await noHorizontalScroll(page);
   });
 
@@ -44,6 +44,10 @@ test.describe('Mi panel del Admin', () => {
     await noHorizontalScroll(page);
   });
 
+});
+
+test.describe('Colaborador (datos demo)', () => {
+  test.use({ baseURL: 'http://127.0.0.1:5174' });
   test('el Colaborador sigue viendo solo lo suyo (sin resumen de empresa ni Usuarios)', async ({ page }) => {
     await login(page, 'Marco');
     await expect(page).toHaveURL(/\/my$/);
