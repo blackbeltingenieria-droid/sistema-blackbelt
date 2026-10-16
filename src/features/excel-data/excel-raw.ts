@@ -2,13 +2,14 @@
 // Filas tal cual del Excel «CUADRO DE COSTOS - PRIMER MODELO» (hojas TABLA_*). NO editar a mano:
 // es la fuente real. Las fechas 15/10/2025 de TABLA_INGRESOS filas 12 y 13 son ADELANTOS y se dejan tal cual.
 // Solo se corrigen textos mal escritos: "15/010/2026" → 2026-10-15; "09/092026" → 2026-09-09.
+// Fuente: «CUADRO DE COSTOS - CORREGIDO.xlsx» (auditoría 16/10/2026: mismos montos, nombres y fechas corregidos).
 
 export const EXCEL_INGRESOS = [
-  { row: 8, client: "WILMER SANCHEZ MAMANI", doc: "45410158", product: "DESARROLLO DE TESIS", group: "DESARROLLO DE TESIS COMPLETA", spec: "Pago de Tesis primera entrega", date: "2026-09-24", amount: 800, method: "YAPE" },
-  { row: 9, client: "CASTRO ESTFHANY DIAZ", doc: "60555252", product: "TESINA", group: "ORDENAR A FORMATO APA Y LEVANTAR OBSERVACIONES", spec: "Pago por culminacion", date: "2026-10-07", amount: 90, method: "YAPE" },
+  { row: 8, client: "WILMER WILFREDO SANCHEZ MAMANI", doc: "45410158", product: "DESARROLLO DE TESIS", group: "DESARROLLO DE TESIS COMPLETA", spec: "Pago de Tesis primera entrega", date: "2026-09-24", amount: 800, method: "YAPE" },
+  { row: 9, client: "DIAZ CASTRO STHEFANY", doc: "60555252", product: "TESINA", group: "ORDENAR A FORMATO APA Y LEVANTAR OBSERVACIONES", spec: "Pago por culminacion", date: "2026-10-07", amount: 90, method: "YAPE" },
   { row: 10, client: "ANTHENOL BENITO FARROMEQUE MUTTO", doc: "44850179", product: "PROYECTO DE INVESTIGACION", group: "REALIZAR LA PARTE DE INTRODUCCION", spec: "Pago por la elaboracion de la Introduccion", date: "2026-10-10", amount: 400, method: "YAPE" },
   { row: 11, client: "ERIKA MERINO ROÑA", doc: null, product: "PROYECTO DE INVESTIGACION", group: "REALIZAR LA PARTE DE INTRODUCCION", spec: "Pago por la elaboracion de la Introduccion", date: "2026-10-10", amount: 400, method: "YAPE" },
-  { row: 12, client: "WILMER SANCHEZ MAMANI", doc: "45410158", product: "DESARROLLO DE TESIS", group: "DESARROLLO DE TESIS COMPLETA", spec: "Pago de Tesis primera entrega", date: "2025-10-15", amount: 1500, method: "YAPE" },
+  { row: 12, client: "WILMER WILFREDO SANCHEZ MAMANI", doc: "45410158", product: "DESARROLLO DE TESIS", group: "DESARROLLO DE TESIS COMPLETA", spec: "Pago de Tesis primera entrega", date: "2025-10-15", amount: 1500, method: "YAPE" },
   { row: 13, client: "TANIA LUCIA AROS RENGIFO", doc: "41705907", product: "DESARROLLO DE TESIS", group: "DESARROLLO DE TESIS COMPLETA", spec: "Pago de Tesis primera entrega", date: "2025-10-15", amount: 2050, method: "YAPE" },
 ] as const;
 
@@ -87,6 +88,9 @@ export const EXCEL_TOTALES = {
   manoObraRequerido: 4700, // TABLA_M.O C8
   manoObraPagado: 3300,    // TABLA_M.O C6
   manoObraFalta: 1400,     // TABLA_M.O C4
-  herramientas: 601.9,     // TABLA_HERRAMIENTAS C4
-  serviciosPublicidad: 329.86, // TABLA_SERVICIOS Y PUBLICIDAD C4
+  // Hojas resumen CORREGIDAS en la auditoría del 16/10/2026 (antes 601.90 y 329.86: les faltaban
+  // IA VIDEO 15/10, Bitel 14/10 y Publicidad FB 08/10, que sí están en TABLA_EGRESOS).
+  herramientas: 646.9,     // TABLA_HERRAMIENTAS C4 (herramientas digitales)
+  serviciosPublicidad: 446.1, // TABLA_SERVICIOS Y PUBLICIDAD C4 (teléfono + publicidad)
+  utilidadSiTodosPagan: 2100.27, // contratado − egresos − mano de obra por pagar (AUDITORIA)
 } as const;

@@ -17,7 +17,7 @@ describe('SQL del Excel para la nube', () => {
     expect(s).toContain("(SELECT id FROM business_units WHERE code = 'UN03')");
     expect((s.match(/'VALIDADO', /g) ?? []).length).toBe(88);
   });
-  it('la verificación compara 14 cifras con el Excel', () => {
-    expect((buildVerifySql().match(/AS concepto/g) ?? []).length).toBe(14);
+  it('la verificación compara 16 cifras con el Excel', () => {
+    expect((buildVerifySql().match(/AS concepto/g) ?? []).length).toBe(16);
   });
 });

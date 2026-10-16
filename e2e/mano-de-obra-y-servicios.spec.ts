@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { go, login, noHorizontalScroll } from './helpers';
+import { go, login, noHorizontalScroll, rowOf } from './helpers';
 
 // Datos base = Excel real. Mano de obra (TABLA_M.O), Servicios y marketing, y periodos de Resultados y caja.
 
@@ -82,4 +82,53 @@ test('resultados y caja: un mes, varios meses y todo desde el inicio', async ({ 
   await page.locator('#rc-year').selectOption('2026');
   await expect(page.getByTestId('cash-closing')).toHaveText('S/ 1,900.27');
   await expect(page.getByTestId('cash-period-opening')).toHaveText('S/ 3,550.00');
+});
+
+test('pago a colaborador por error: se deshace y vuelve todo como estaba', async ({ page }) => {
+  await login(page, 'Henry Torres');
+  await go(page, 'Mano de obra');
+  const johann = page.locator('[data-testid="labor-row"][data-worker="JOHANN IMANOL HERRERA RAMOS"]');
+  await johann.getByTestId('labor-pay').click();
+  await johann.getByTestId('labor-pay-form').getByRole('button', { name: 'Guardar pago' }).click();
+  await expect(johann.getByTestId('labor-pending')).toHaveText('S/ 0.00');
+  await expect(page.getByTestId('labor-total-pending')).toHaveText('S/ 700.00');
+  // Deshacer al instante
+  await page.getByTestId('labor-undo-last').click();
+  await expect(johann.getByTestId('labor-pending')).toHaveText('S/ 700.00');
+  await expect(page.getByTestId('labor-total-pending')).toHaveText('S/ 1,400.00');
+  // O después, desde "Pagos hechos"
+  const teddy = page.locator('[data-testid="labor-row"][data-worker="TEDDY GARCIA MURRIETA"]');
+  await teddy.getByText('Pagos hechos (2)').click();
+  await teddy.getByTestId('labor-undo').first().click();
+  await teddy.getByRole('button', { name: 'Sí, deshacer' }).click();
+  await expect(teddy.getByTestId('labor-paid')).toHaveText('S/ 20.00');
+  await go(page, 'Resultados y caja');
+  await expect(page.getByTestId('summary-cash')).toHaveText('S/ 1,910.27');   // volvieron los S/ 10
+});
+
+test('editar un cobro ya guardado muestra lo que de verdad falta', async ({ page }) => {
+  await login(page, 'Henry Torres');
+  await go(page, 'Ingresos y egresos');
+  await page.locator('#f-month').selectOption('');
+  await rowOf(page, 'MOV-2026-0059').getByRole('button', { name: 'Editar' }).click();
+  const box = page.getByRole('dialog').getByTestId('project-balance');
+  await expect(box).toContainText('S/ 400.00');                  // ya pagó
+  await expect(box).toContainText('S/ 1,600.00');                // falta
+  await expect(box.getByTestId('project-includes-this')).toBeVisible();
+  await expect(box.getByTestId('fill-pending')).toHaveCount(0);
+  await expect(box.getByTestId('project-payment-note')).toHaveText('Después de este pago faltarán S/ 1,600.00.');
+  await page.getByRole('button', { name: 'Cancelar' }).click();
+  await rowOf(page, 'MOV-2025-0003').getByRole('button', { name: 'Editar' }).click();
+  const tania = page.getByRole('dialog').getByTestId('project-balance');
+  await expect(tania).toContainText('S/ 2,050.00');
+  await expect(tania.getByText('S/ 0.00')).toBeVisible();
+  await expect(tania.getByTestId('project-payment-note')).toHaveText('Con este pago el proyecto queda pagado por completo.');
+});
+
+test('resultados: si se cobra y se paga todo (como Hoja1 del Excel)', async ({ page }) => {
+  await login(page, 'Henry Torres');
+  await go(page, 'Resultados y caja');
+  await expect(page.getByTestId('summary-projected')).toContainText('S/ 3,100.00');
+  await expect(page.getByTestId('summary-projected')).toContainText('S/ 1,400.00');
+  await expect(page.getByTestId('summary-projected')).toContainText('ganarías S/ 2,100.27');
 });
