@@ -15,6 +15,8 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Mi panel',             shortLabel: 'Mi panel',    to: '/my',                icon: '🏠', primary: true },
   { label: 'Ingresos y egresos',   shortLabel: 'Registros',      to: '/movements',         icon: '💸', primary: true },
   { label: 'Clientes y Proyectos', shortLabel: 'Proyectos',   to: '/clients-projects',  icon: '📋' },
+  { label: 'Mano de obra',         shortLabel: 'Mano obra',   to: '/labor',             icon: '👷' },
+  { label: 'Servicios y marketing', shortLabel: 'Servicios',  to: '/recurring',         icon: '📣' },
   { label: 'Presupuesto',          shortLabel: 'Presup.',   to: '/budgets',           icon: '🎯' },
   { label: 'Inversiones',          shortLabel: 'Inversiones', to: '/investments',       icon: '💼' },
   { label: 'Resultados y caja',    shortLabel: 'Resultados',  to: '/results-cash',      icon: '🧮' },

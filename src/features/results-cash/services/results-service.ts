@@ -11,9 +11,11 @@ import { getMovements } from '../../movements/services/movement-service';
 import { getProjectRows } from '../../clients-projects/services/project-service';
 import type { EnrichedMovement } from '../../movements/types';
 import {
-  computeCash, computeResults, summarizeAllocation,
+  computeCashForMonths, computeResults, computeResultsForMonths, summarizeAllocation,
   type AllocationSummary, type CashReport, type ResultsReport,
 } from '../domain/calculations';
+import { periodLabel, periodMonths, previousLabel, previousMonths, type Period } from '../domain/period';
+import { currentMonth } from '../../../lib/format';
 import {
   cashEvolution, lastMonths, monthlyEvolution, previousMonth,
   type CashPoint, type MonthlyPoint,
@@ -45,41 +47,65 @@ export async function setOpeningCash(value: number): Promise<void> {
 }
 
 export interface MonthReport {
-  mes: string;
+  mes: string;                     // último mes del periodo (el mes elegido si es un solo mes)
+  period: Period;
+  months: string[];                // meses del periodo, del más antiguo al más reciente
+  label: string;                   // "octubre 2026", "agosto 2026 – octubre 2026", "desde el inicio (…)"
+  previousLabel: string;           // cómo se llama el periodo anterior en las frases ('' si no hay)
+  dataMonths: string[];            // meses que tienen registros (para los selectores)
   results: ResultsReport;
-  allocation: AllocationSummary;
-  cash: CashReport;
+  allocation: AllocationSummary;   // reparto CORP (solo tiene sentido en un mes)
+  cash: CashReport & { periodOpening: number };
   movements: EnrichedMovement[];   // para resolver ids → filas de trazabilidad
   pendingReview: number;           // movimientos sin control OK (excluidos de los reportes)
-  validMovementsInMonth: number;
+  validMovementsInMonth: number;   // del periodo
   // Solo presentación (gráficos): mismas funciones de cálculo, otros meses.
-  previous: ResultsReport;          // mes anterior, para la variación de los KPIs
-  evolution: MonthlyPoint[];        // últimos 6 meses
-  cashByMonth: CashPoint[];         // últimos 6 meses
+  previous: ResultsReport;          // periodo anterior del mismo largo, para la variación de los KPIs
+  evolution: MonthlyPoint[];        // un mes: últimos 6 · periodo: sus meses
+  cashByMonth: CashPoint[];
   budgets: DbBudget[];              // metas del mes (para el aviso de presupuesto del Resumen)
   projectsReceivable: number;       // lo que falta pagar de los proyectos no cancelados
 }
 
+/** Un solo mes (lo usa también el Dashboard). */
 export async function getMonthReport(mes: string): Promise<MonthReport> {
-  const [movements, allocations, opening, budgets, projects] = await Promise.all([
-    getMovements(), getAllocationsByMonth(), getOpeningCash(), getBudgets(mes), getProjectRows().catch(() => []),
+  return getPeriodReport({ kind: 'month', month: mes });
+}
+
+/** Resultados y caja de un periodo: un mes, varios meses, un año o todo desde el inicio. */
+export async function getPeriodReport(period: Period, current = currentMonth()): Promise<MonthReport> {
+  const [movements, allocations, opening, projects] = await Promise.all([
+    getMovements(), getAllocationsByMonth(), getOpeningCash(), getProjectRows().catch(() => []),
   ]);
+  const dataMonths = [...new Set(movements.map((m) => m.mes).filter(Boolean))].sort();
+  const months = periodMonths(period, dataMonths, current);
+  const mes = months[months.length - 1];
+  const budgets = period.kind === 'month' ? await getBudgets(mes) : [];
   const projectsReceivable = Math.round(projects.filter((p) => p.status !== 'cancelado')
     .reduce((a, p) => a + Math.max(0, p.pendingBalance), 0) * 100) / 100;
-  const pcts = allocations[mes]?.pcts ?? {};
-  const months = lastMonths(mes, 6);
+  const pctsOf = (m: string) => allocations[m]?.pcts ?? {};
+  const prev = previousMonths(period, months);
+  const set = new Set(months);
+  // Gráficos: un mes → últimos 6; un periodo → sus meses con registros (sin barras vacías de meses sin datos).
+  const withData = months.filter((m) => dataMonths.includes(m));
+  const chartMonths = months.length === 1 ? lastMonths(mes, 6) : withData.length ? withData : months;
   return {
     mes,
-    results: computeResults(movements, mes, pcts),
-    allocation: summarizeAllocation(movements, mes, pcts),
-    cash: computeCash(movements, mes, opening),
-    previous: computeResults(movements, previousMonth(mes), allocations[previousMonth(mes)]?.pcts ?? {}),
-    evolution: monthlyEvolution(movements, allocations, months),
-    cashByMonth: cashEvolution(movements, opening, months),
+    period,
+    months,
+    label: periodLabel(period, months),
+    previousLabel: previousLabel(period, prev),
+    dataMonths,
+    results: computeResultsForMonths(movements, months, pctsOf),
+    allocation: summarizeAllocation(movements, mes, pctsOf(mes)),
+    cash: computeCashForMonths(movements, months, opening),
+    previous: prev.length ? computeResultsForMonths(movements, prev, pctsOf) : computeResults([], previousMonth(months[0]), {}),
+    evolution: monthlyEvolution(movements, allocations, chartMonths),
+    cashByMonth: cashEvolution(movements, opening, chartMonths),
     movements,
     budgets,
     projectsReceivable,
     pendingReview: movements.filter((m) => m.control !== 'OK').length,
-    validMovementsInMonth: movements.filter((m) => m.mes === mes && m.status === 'VALIDADO' && m.control === 'OK').length,
+    validMovementsInMonth: movements.filter((m) => set.has(m.mes) && m.status === 'VALIDADO' && m.control === 'OK').length,
   };
 }

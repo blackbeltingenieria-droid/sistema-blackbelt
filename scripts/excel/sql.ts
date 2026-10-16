@@ -6,7 +6,7 @@
 // Los catálogos se buscan por CÓDIGO (no por id) para que funcione aunque los ids de la nube sean otros.
 
 import {
-  XLS_CLIENTS, XLS_INVESTMENTS, XLS_MOVEMENTS, XLS_PAYMENTS, XLS_PROJECTS, XLS_SPECIALISTS, datasetTotals,
+  XLS_CLIENTS, XLS_INVESTMENTS, XLS_LABOR_CONTRACTS, XLS_MOVEMENTS, XLS_PAYMENTS, XLS_PROJECTS, XLS_SPECIALISTS, datasetTotals,
 } from '../../src/features/excel-data/excel-dataset';
 import { EXCEL_TOTALES } from '../../src/features/excel-data/excel-raw';
 import { Raw, lit } from '../demo/sql';
@@ -21,7 +21,7 @@ function insert(table: string, columns: string[], rows: Record<string, unknown>[
   return `INSERT INTO ${table} (${columns.join(', ')}) VALUES\n${values};`;
 }
 
-const DATA_TABLES = ['work_hours', 'tasks', 'sprints', 'movements', 'budgets', 'corp_allocation', 'project_payments', 'projects', 'clients', 'investments'];
+const DATA_TABLES = ['labor_contracts', 'work_hours', 'tasks', 'sprints', 'movements', 'budgets', 'corp_allocation', 'project_payments', 'projects', 'clients', 'investments'];
 
 export function buildBackupAndCleanSql(): string {
   const names = XLS_SPECIALISTS.map((s) => lit(s.name.toLowerCase())).join(', ');
@@ -37,7 +37,7 @@ export function buildBackupAndCleanSql(): string {
     `-- NO toca: usuarios, roles, catálogos (unidades, áreas, categorías) ni la configuración.`,
     `--`,
     `-- SEGURIDAD: no hace nada hasta que cambies 'NO' por 'SI' en la línea marcada.`,
-    `-- Requiere las migraciones 20261016000001 y 20261017000001 ya aplicadas.`,
+    `-- Requiere las migraciones 20261016000001, 20261017000001 y 20261018000001 ya aplicadas.`,
     `-- ==============================================================================`,
     ``,
     `DO $$`,
@@ -50,6 +50,9 @@ export function buildBackupAndCleanSql(): string {
     `  END IF;`,
     `  IF to_regclass('investments') IS NULL THEN`,
     `    RAISE EXCEPTION 'Falta la migración 20261017000001_investments.sql. Aplícala primero.';`,
+    `  END IF;`,
+    `  IF to_regclass('labor_contracts') IS NULL THEN`,
+    `    RAISE EXCEPTION 'Falta la migración 20261018000001_labor_contracts.sql. Aplícala primero.';`,
     `  END IF;`,
     ``,
     `  -- transactions (esquema anterior) se respalda porque al borrar proyectos su enlace quedaría vacío.`,
@@ -84,10 +87,12 @@ export function buildLoadSql(): string {
     `-- Generado por: npm run seed:excel:sql  (misma fuente que los datos locales: src/features/excel-data)`,
     `--`,
     `-- Carga: ${XLS_CLIENTS.length} clientes, ${XLS_PROJECTS.length} proyectos, ${XLS_PAYMENTS.length} pagos de clientes, ${XLS_SPECIALISTS.length} especialistas,`,
-    `--        ${XLS_MOVEMENTS.length} movimientos (ingresos + cobros, egresos + pagos, aportes) y ${XLS_INVESTMENTS.length} inversiones.`,
+    `--        ${XLS_MOVEMENTS.length} movimientos (ingresos + cobros, egresos + pagos, aportes), ${XLS_INVESTMENTS.length} inversiones`,
+    `--        y ${XLS_LABOR_CONTRACTS.length} contratos de mano de obra (TABLA_M.O).`,
     `-- Totales: ingresos S/ ${t.ingresos} · egresos S/ ${t.egresos} · inversión S/ ${t.inversion} · caja S/ ${t.fondoEnCaja}.`,
     `-- Saldo inicial de caja = 0 (el Excel calcula: fondo en caja = ingresos + inversión − egresos).`,
-    `-- Fechas corregidas (decisión de la usuaria): 15/10/2025 → 15/10/2026; "15/010/2026" → 15/10/2026.`,
+    `-- Fechas: 15/10/2025 son ADELANTOS (Wilmer S/ 1,500 y Tania S/ 2,050) y se cargan tal cual.`,
+    `-- Solo se corrigen textos mal escritos: "15/010/2026" → 15/10/2026; "09/092026" → 09/09/2026.`,
     `--`,
     `-- Se detiene si ya hay clientes, proyectos o movimientos (corre antes excel-01-respaldo-y-limpieza.sql).`,
     `-- Todo va en una transacción: si algo falla, no queda nada a medias.`,
@@ -102,6 +107,9 @@ export function buildLoadSql(): string {
     `  END IF;`,
     `  IF to_regclass('investments') IS NULL THEN`,
     `    RAISE EXCEPTION 'Falta la migración 20261017000001_investments.sql. Aplícala primero.';`,
+    `  END IF;`,
+    `  IF to_regclass('labor_contracts') IS NULL THEN`,
+    `    RAISE EXCEPTION 'Falta la migración 20261018000001_labor_contracts.sql. Aplícala primero.';`,
     `  END IF;`,
     `END $$;`,
     ``,
@@ -141,8 +149,18 @@ export function buildLoadSql(): string {
         payment_method: i.method, description: i.description, interest_rate: 0, term_months: null,
       }))),
     ``,
+    `-- Mano de obra (TABLA_M.O). Lo pagado se calcula con los egresos enlazados ('Mano de obra CMO-…').`,
+    insert('labor_contracts', ['id', 'code', 'specialist_id', 'worker_name', 'worker_doc', 'business_unit_id', 'area_id', 'project_id', 'client_label', 'service', 'description', 'contract_type', 'start_date', 'end_date', 'agreed_amount', 'active', 'notes'],
+      XLS_LABOR_CONTRACTS.map((c) => ({
+        id: c.id, code: c.code,
+        specialist_id: new Raw(`(SELECT id FROM specialists WHERE lower(full_name) = ${lit((XLS_SPECIALISTS.find((s) => s.id === c.specialistId)?.name ?? '').toLowerCase())} LIMIT 1)`),
+        worker_name: c.name, worker_doc: c.doc, business_unit_id: unit(c.unitCode), area_id: area(c.areaCode), project_id: c.projectId,
+        client_label: c.clientLabel, service: c.service, description: c.description, contract_type: c.type, start_date: c.start,
+        end_date: c.end, agreed_amount: c.agreed, active: true, notes: `Excel TABLA_M.O fila ${c.row}`,
+      }))),
+    ``,
     `-- Los contadores de id siguen después de lo cargado (para que la app cree los siguientes sin chocar)`,
-    ...['clients', 'projects', 'project_payments', 'movements', 'investments'].map((tb) =>
+    ...['clients', 'projects', 'project_payments', 'movements', 'investments', 'labor_contracts'].map((tb) =>
       `SELECT setval(pg_get_serial_sequence('${tb}', 'id'), (SELECT max(id) FROM ${tb}));`),
     ``,
     `COMMIT;`,
@@ -175,6 +193,12 @@ export function buildVerifySql(): string {
       row('Monto contratado (TABLA_CLIENTES)', E.contratado, `SELECT coalesce(sum(contracted_amount), 0) FROM projects`),
       row('Monto pagado por clientes', E.pagadoClientes, `SELECT coalesce(sum(amount), 0) FROM project_payments`),
       row('Falta cobrar', E.faltaCobrar, `SELECT (SELECT coalesce(sum(contracted_amount), 0) FROM projects) - (SELECT coalesce(sum(amount), 0) FROM project_payments)`),
+      row('Adelantos cobrados en octubre 2025', 3550, sum(`record_type = 'COBRO' AND movement_date BETWEEN '2025-10-01' AND '2025-10-31'`)),
+      row('Mano de obra: monto requerido (TABLA_M.O)', E.manoObraRequerido, `SELECT coalesce(sum(agreed_amount), 0) FROM labor_contracts WHERE active`),
+      row('Mano de obra: monto pagado', E.manoObraPagado,
+        `SELECT coalesce(sum(m.amount), 0) FROM movements m WHERE m.status = 'VALIDADO' AND m.record_type = 'COSTO_RECONOCIDO' AND m.notes LIKE '%Mano de obra CMO-%' AND EXISTS (SELECT 1 FROM movements p WHERE p.record_type = 'PAGO' AND p.status = 'VALIDADO' AND p.notes = 'Contrapartida de ' || m.movement_code)`),
+      row('Mano de obra: falta pagar', E.manoObraFalta,
+        `SELECT (SELECT coalesce(sum(agreed_amount), 0) FROM labor_contracts WHERE active) - (SELECT coalesce(sum(m.amount), 0) FROM movements m WHERE m.status = 'VALIDADO' AND m.record_type = 'COSTO_RECONOCIDO' AND m.notes LIKE '%Mano de obra CMO-%' AND EXISTS (SELECT 1 FROM movements p WHERE p.record_type = 'PAGO' AND p.status = 'VALIDADO' AND p.notes = 'Contrapartida de ' || m.movement_code))`),
       row('Resultado (ingresos − egresos)', r2(E.ingresos - E.egresos), `SELECT (${sum(`record_type = 'INGRESO_RECONOCIDO'`)}) - (${sum(`record_type = 'COSTO_RECONOCIDO'`)})`),
     ].join('\n  UNION ALL\n'),
     `) x;`,

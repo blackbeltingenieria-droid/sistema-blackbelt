@@ -8,12 +8,14 @@ import { TraceFigure } from '../../movements/components/TraceFigure';
 import type { CashReport } from '../domain/calculations';
 
 interface CashSummaryProps {
-  cash: CashReport;
+  cash: CashReport & { periodOpening?: number };
+  /** "del mes" o "del periodo". */
+  scope?: string;
   onTrace: (title: string, ids: number[]) => void;
   onSaveOpening: (value: number) => Promise<void>;
 }
 
-export function CashSummary({ cash, onTrace, onSaveOpening }: CashSummaryProps) {
+export function CashSummary({ cash, onTrace, onSaveOpening, scope = 'del mes' }: CashSummaryProps) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(String(cash.openingBalance));
   const [error, setError] = useState<string | null>(null);
@@ -62,12 +64,15 @@ export function CashSummary({ cash, onTrace, onSaveOpening }: CashSummaryProps) 
           <dt className="bb-label-xs text-ink">Saldo de caja acumulado</dt>
           <dd className={`bb-mono text-base font-medium ${cash.closingBalance < 0 ? 'text-rust' : 'text-ink'}`} data-testid="cash-closing">{formatPen(cash.closingBalance)}</dd>
         </div>
-        {line('Cobros del mes', <TraceFigure amount={cash.month.cobros.amount} ids={cash.month.cobros.ids} label="Cobros del mes" onOpen={onTrace} />)}
-        {line('Aportes del mes', <TraceFigure amount={cash.month.aportes.amount} ids={cash.month.aportes.ids} label="Aportes del mes" onOpen={onTrace} />)}
-        {line('Pagos del mes', <TraceFigure amount={cash.month.pagos.amount} ids={cash.month.pagos.ids} label="Pagos del mes" onOpen={onTrace} />)}
-        {line('Retiros del mes', <TraceFigure amount={cash.month.retiros.amount} ids={cash.month.retiros.ids} label="Retiros del mes" onOpen={onTrace} />)}
+        {cash.periodOpening !== undefined && scope !== 'del mes' && line('Dinero al empezar el periodo', <span className="bb-mono text-sm text-ink" data-testid="cash-period-opening">{formatPen(cash.periodOpening)}</span>)}
+        {line(`Cobros ${scope}`, <TraceFigure amount={cash.month.cobros.amount} ids={cash.month.cobros.ids} label={`Cobros ${scope}`} onOpen={onTrace} />)}
+        {line(`Aportes ${scope}`, <TraceFigure amount={cash.month.aportes.amount} ids={cash.month.aportes.ids} label={`Aportes ${scope}`} onOpen={onTrace} />)}
+        {cash.month.prestamos.amount > 0 && line(`Préstamos ${scope}`, <TraceFigure amount={cash.month.prestamos.amount} ids={cash.month.prestamos.ids} label={`Préstamos ${scope}`} onOpen={onTrace} />)}
+        {line(`Pagos ${scope}`, <TraceFigure amount={cash.month.pagos.amount} ids={cash.month.pagos.ids} label={`Pagos ${scope}`} onOpen={onTrace} />)}
+        {line(`Retiros ${scope}`, <TraceFigure amount={cash.month.retiros.amount} ids={cash.month.retiros.ids} label={`Retiros ${scope}`} onOpen={onTrace} />)}
+        {cash.month.pagosPrestamo.amount > 0 && line(`Devolución de préstamos ${scope}`, <TraceFigure amount={cash.month.pagosPrestamo.amount} ids={cash.month.pagosPrestamo.ids} label={`Devolución de préstamos ${scope}`} onOpen={onTrace} />)}
         <div className="flex items-center justify-between gap-3 pt-3">
-          <dt className="bb-label-xs text-ink">Movimiento neto del mes</dt>
+          <dt className="bb-label-xs text-ink">Movimiento neto {scope}</dt>
           <dd className="bb-mono text-base font-medium text-ink" data-testid="cash-net">{formatPen(cash.netFlow)}</dd>
         </div>
       </dl>

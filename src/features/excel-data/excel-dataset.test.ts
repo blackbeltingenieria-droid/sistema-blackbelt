@@ -23,7 +23,9 @@ describe('datos reales del Excel', () => {
   it('códigos únicos y correlativos por fecha', () => {
     const codes = XLS_MOVEMENTS.map((m) => m.code);
     expect(new Set(codes).size).toBe(codes.length);
-    expect(codes[0]).toBe('MOV-2026-0001');
+    // Los 2 adelantos del 15/10/2025 abren la numeración 2025; el 2026 empieza en 0001.
+    expect(codes.slice(0, 4)).toEqual(['MOV-2025-0001', 'MOV-2025-0002', 'MOV-2025-0003', 'MOV-2025-0004']);
+    expect(codes[4]).toBe('MOV-2026-0001');
     expect(XLS_MOVEMENTS.every((m, i) => i === 0 || XLS_MOVEMENTS[i - 1].date <= m.date)).toBe(true);
   });
   it('lo que falta cobrar por proyecto coincide con TABLA_CLIENTES', () => {
@@ -46,5 +48,8 @@ describe('filas locales', () => {
     const result = months.reduce((a, mes) => a + computeResults(enriched, mes, {}).totals.finalResult, 0);
     expect(Math.round(result * 100) / 100).toBe(400.27);
     expect(computeCash(enriched, '2026-10', 0).closingBalance).toBe(1900.27);
+    // Adelantos de 2025: ese mes ya entró dinero de Wilmer y Tania.
+    expect(computeCash(enriched, '2025-10', 0).closingBalance).toBe(3550);
+    expect(computeResults(enriched, '2025-10', {}).totals.income).toBe(3550);
   });
 });

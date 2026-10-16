@@ -370,6 +370,38 @@ export interface DbInvestment {
   created_at?: string;
 }
 
+// ─── Mano de obra: labor_contracts (migración 20261018000001) ─────────────────
+// Un contrato por colaborador y trabajo (TABLA_M.O del Excel): cuánto se acordó pagarle y hasta cuándo.
+// Lo PAGADO no se guarda: se calcula con los egresos enlazados (notes "Mano de obra CMO-AAAA-NNN")
+// que ya tienen su pago. Así Mano de obra, caja y resultados cuadran siempre.
+export const LABOR_CONTRACT_TYPE = {
+  POR_PROYECTO: 'POR_PROYECTO',
+  MENSUAL:      'MENSUAL',
+} as const;
+
+export type LaborContractType = (typeof LABOR_CONTRACT_TYPE)[keyof typeof LABOR_CONTRACT_TYPE];
+
+export interface DbLaborContract {
+  id: number;
+  code: string;                     // CMO-AAAA-NNN
+  specialist_id: number | null;     // FK specialists (si está en el Equipo)
+  worker_name: string;              // colaborador
+  worker_doc: string | null;        // DNI/RUC
+  business_unit_id: number;         // FK business_units (CORP = toda la empresa)
+  area_id: number | null;           // FK areas
+  project_id: number | null;        // FK projects (si trabaja para un proyecto)
+  client_label: string | null;      // para quién trabaja (cliente o BLACKBELT GROUP)
+  service: string;                  // qué servicio da
+  description: string | null;       // especificación
+  contract_type: LaborContractType; // por proyecto o mensual
+  start_date: string;               // fecha de contratación
+  end_date: string | null;          // fecha de culminación = fecha límite para pagarle
+  agreed_amount: number;            // monto requerido (S/ > 0)
+  active: boolean;
+  notes: string | null;
+  created_at?: string;
+}
+
 // ─── Database shape for supabase-js generic typing ──────────────────────────
 export interface Database {
   public: {
@@ -478,6 +510,11 @@ export interface Database {
         Row: DbInvestment;
         Insert: Omit<DbInvestment, 'id'> & { id?: number };
         Update: Partial<DbInvestment>;
+      };
+      labor_contracts: {
+        Row: DbLaborContract;
+        Insert: Omit<DbLaborContract, 'id'> & { id?: number };
+        Update: Partial<DbLaborContract>;
       };
     };
   };

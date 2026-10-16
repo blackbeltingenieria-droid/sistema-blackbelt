@@ -16,7 +16,10 @@ import { MOVEMENT_STATUS, RECORD_TYPE } from '../../types/database';
 import { UnitBadge } from '../catalogs/components/UnitBadge';
 import { MovementFormModal } from './components/MovementFormModal';
 import { ControlBadge, StatusBadge } from './components/MovementBadges';
-import { QuickMovementModal } from './components/QuickMovementModal';
+import { QuickMovementModal, type LaborOption } from './components/QuickMovementModal';
+import { buildLaborReport } from '../labor/domain/labor';
+import { getLaborContracts } from '../labor/services/labor-service';
+import type { DbLaborContract } from '../../types/database';
 import { isEligible } from './domain/movement-rules';
 import {
   CONTROL_HELP, SIMPLE_TYPE, buildConceptMemory, groupEvents, lastPaymentMethod, isQuickEditable, projectIncomeFill, quickInputFromMovement,
@@ -71,6 +74,34 @@ export function MovementsPage() {
     }
     setParams({}, { replace: true });
   }, [params, catalogs.loading, catalogs.projects, setParams]);
+
+  // "Pagar este mes" desde Servicios y marketing: copia el último pago de ese servicio con la fecha de hoy.
+  useEffect(() => {
+    const id = Number(params.get('repetir'));
+    if (!id || catalogs.loading || loading) return;
+    const ev = groupEvents(rows).find((e) => e.main.id === id);
+    if (ev) {
+      const base = quickInputFromMovement(ev.main, true, {
+        units: catalogs.units, areas: catalogs.areas, categories: catalogs.categories, projects: catalogs.projects,
+      });
+      setModal({
+        kind: 'quick', event: null,
+        prefill: { ...base, date: new Date().toISOString().slice(0, 10), settled: true, paymentMethod: ev.pair?.payment_method ?? base.paymentMethod, notes: null },
+      });
+    }
+    setParams({}, { replace: true });
+  }, [params, rows, loading, catalogs.loading, catalogs.units, catalogs.areas, catalogs.categories, catalogs.projects, setParams]);
+
+  // Contratos de mano de obra (para "¿Es pago a un colaborador?" en el egreso).
+  const [laborContracts, setLaborContracts] = useState<DbLaborContract[]>([]);
+  useEffect(() => { getLaborContracts().then(setLaborContracts).catch(() => setLaborContracts([])); }, [rows]);
+  const laborOptions: LaborOption[] = useMemo(() => {
+    const corp = catalogs.units.find((u) => u.code === 'CORP')?.id;
+    return buildLaborReport(laborContracts, rows, new Date().toISOString().slice(0, 10)).rows.map((r) => ({
+      code: r.contract.code, worker: r.contract.worker_name, service: r.contract.service, pending: r.pending,
+      unitId: r.contract.business_unit_id === corp ? null : r.contract.business_unit_id, projectId: r.contract.project_id,
+    }));
+  }, [laborContracts, rows, catalogs.units]);
 
   const quickCatalogs: QuickCatalogs = {
     units: catalogs.units, areas: catalogs.areas, categories: catalogs.categories, projects: catalogs.projects,
@@ -331,6 +362,7 @@ export function MovementsPage() {
           editingCode={modal.event?.main.movement_code}
           memory={memory}
           defaultPaymentMethod={defaultPayment}
+          laborOptions={laborOptions}
           onSubmit={submitQuick}
           onClose={() => setModal({ kind: 'none' })}
           onAdvanced={() => setModal({ kind: 'full', movement: null })}

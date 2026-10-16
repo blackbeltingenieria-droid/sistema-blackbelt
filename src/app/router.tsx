@@ -12,6 +12,8 @@ import { ResultsCashPage } from '../features/results-cash/ResultsCashPage';
 import { UsersPage } from '../features/users/UsersPage';
 import { InvestmentsPage } from '../features/investments/InvestmentsPage';
 import { WorkHoursPage } from '../features/work-hours/WorkHoursPage';
+import { LaborPage } from '../features/labor/LaborPage';
+import { RecurringPage } from '../features/recurring/RecurringPage';
 
 // Las rutas se protegen por rol en RootLayout → RequireRole (ver features/auth/access.ts).
 export const router = createBrowserRouter([
@@ -31,6 +33,8 @@ export const router = createBrowserRouter([
       { path: 'kanban/:projectId',  element: <KanbanPage /> },
       { path: 'users',              element: <UsersPage /> },
       { path: 'investments',        element: <InvestmentsPage /> },
+      { path: 'labor',              element: <LaborPage /> },
+      { path: 'recurring',          element: <RecurringPage /> },
       { path: 'work-hours',         element: <WorkHoursPage /> },
       { path: '*',                  element: <Navigate to="/" replace /> },
     ],

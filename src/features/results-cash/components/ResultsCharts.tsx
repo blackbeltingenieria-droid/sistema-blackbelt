@@ -32,7 +32,7 @@ export default function ResultsCharts({ report, units, categories, onTrace }: Pr
       <TrendChart data={report.evolution} />
       <CashChart data={report.cashByMonth} onTrace={onTrace} />
       <div className="lg:col-span-2">
-        <CategoryChart data={expensesByCategory(report.movements, report.mes, catNames)} onTrace={onTrace} />
+        <CategoryChart data={expensesByCategory(report.movements, report.months, catNames)} onTrace={onTrace} />
       </div>
     </div>
   );

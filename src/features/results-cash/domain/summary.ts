@@ -38,6 +38,10 @@ export function buildBusinessSummary(input: {
   unitNames: Map<string, string>;
   /** Lo que falta pagar de los proyectos (Clientes y Proyectos). Si se da, es el "Te deben". */
   projectsReceivable?: number;
+  /** Meses del periodo (si es más de un mes). `mes` es el último. */
+  months?: string[];
+  /** Cómo se nombra el periodo anterior ("septiembre", "los 3 meses anteriores"). */
+  previousLabel?: string;
 }): BusinessSummary {
   const { mes, results, previous, cash, movements, evolution, categoryNames, unitNames } = input;
   const t = results.totals;
@@ -52,7 +56,7 @@ export function buildBusinessSummary(input: {
   const startIncome = sumType(RECORD_TYPE.INGRESO_RECONOCIDO);
   const startSpent = sumType(RECORD_TYPE.COSTO_RECONOCIDO);
   const sinceStart = { income: startIncome, spent: startSpent, result: r2(startIncome - startSpent) };
-  const topExpenses = expensesByCategory(movements, mes, categoryNames, 5);
+  const topExpenses = expensesByCategory(movements, input.months ?? mes, categoryNames, 5);
   const verdict = income === 0 && spent === 0 ? 'sin-datos' : result >= 0 ? 'gana' : 'pierde';
 
   const reasons: string[] = [];
@@ -70,7 +74,7 @@ export function buildBusinessSummary(input: {
     const prevHasData = previous.totals.income > 0 || previous.totals.finalResult !== 0;
     if (prevHasData) {
       const diff = r2(result - previous.totals.finalResult);
-      const prevName = monthLabel(previous.mes).split(' ')[0].toLowerCase();
+      const prevName = (input.previousLabel ?? monthLabel(previous.mes).split(' ')[0]).toLowerCase();
       if (Math.abs(diff) >= 1) reasons.push(`Te fue ${money(diff)} ${diff > 0 ? 'mejor' : 'peor'} que en ${prevName}.`);
     }
   }

@@ -1,5 +1,5 @@
 // features/results-cash/ResultsCashPage.tsx
-// Resultados Modelo C (contribución, margen, resultado final) y caja de un mes.
+// Resultados Modelo C (contribución, margen, resultado final) y caja de un mes, varios meses, un año o todo.
 // Todo calculado desde movimientos VALIDADO + OK; cada cifra abre su trazabilidad.
 
 import { lazy, Suspense, useMemo, useState } from 'react';
@@ -7,7 +7,8 @@ import { Link } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { ErrorBanner } from '../../components/ui/ErrorBanner';
 import { KpiCard } from '../../components/ui/KpiCard';
-import { MonthSelect } from '../../components/ui/MonthSelect';
+import { PeriodPicker } from './components/PeriodPicker';
+import type { Period } from './domain/period';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { currentMonth, formatPct, formatPen, monthRange } from '../../lib/format';
 import { useMovementCatalogs } from '../movements/hooks/useMovementCatalogs';
@@ -28,18 +29,22 @@ const ResultsCharts = lazy(() => import('./components/ResultsCharts'));
 type Tab = 'summary' | 'charts' | 'detail';
 
 export function ResultsCashPage() {
-  const [month, setMonth] = useState(currentMonth());
-  const { report, loading, error, refetch } = useMonthReport(month);
+  const [period, setPeriod] = useState<Period>({ kind: 'month', month: currentMonth() });
+  const { report, loading, error, refetch } = useMonthReport(period);
+  const isMonth = period.kind === 'month';
+  const month = report?.mes ?? (period.kind === 'month' ? period.month : currentMonth());
   const { units, categories } = useMovementCatalogs();
   const [tab, setTab] = useState<Tab>('summary');
   const [trace, setTrace] = useState<{ title: string; ids: number[] } | null>(null);
 
+  // Meses para elegir: desde el primer registro (o enero 2026) hasta hoy.
   const months = useMemo(() => {
-    const set = new Set(monthRange('2026-01', currentMonth()));
-    report?.movements.forEach((m) => m.mes && set.add(m.mes));
-    set.add(month);
+    const first = report?.dataMonths[0] && report.dataMonths[0] < '2026-01' ? report.dataMonths[0] : '2026-01';
+    const set = new Set(monthRange(first, currentMonth()));
+    report?.dataMonths.forEach((m) => set.add(m));
+    if (period.kind === 'month') set.add(period.month);
     return [...set].sort().reverse();
-  }, [report, month]);
+  }, [report, period]);
 
   const r = report?.results;
   const alloc = report?.allocation;
@@ -49,10 +54,10 @@ export function ResultsCashPage() {
       <div className="px-4 py-5 sm:px-6 lg:px-10 lg:py-9">
         <PageHeader title="Resultados y caja" subtitle="¿Estás ganando o perdiendo, y por qué?" />
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 items-end">
-          <MonthSelect id="rc-month" label="Mes de análisis" value={month} months={months} onChange={setMonth} />
-          {alloc && tab !== 'summary' && (
-            <div className="sm:col-span-2 flex flex-wrap items-center gap-2 pb-1">
+        <div className="flex flex-col lg:flex-row lg:items-end gap-3 mb-4">
+          <div className="lg:flex-1"><PeriodPicker value={period} months={months} onChange={setPeriod} /></div>
+          {alloc && tab !== 'summary' && isMonth && (
+            <div className="flex flex-wrap items-center gap-2 pb-1">
               <span className="bb-label-xs text-ink-soft">Reparto CORP</span>
               <span data-testid="allocation-status" className={`bb-mono text-[11px] px-2 py-0.5 rounded-full ${alloc.status === 'COMPLETO' ? 'bg-belt-en_revision text-paper' : alloc.status === 'REVISAR >100%' ? 'bg-rust text-paper' : 'bg-belt-por_hacer text-ink'}`}>
                 {alloc.status}
@@ -75,7 +80,7 @@ export function ResultsCashPage() {
             )}
 
             {tab !== 'summary' && (() => {
-              const n = buildNarrative(r, report.previous);
+              const n = buildNarrative(r, report.previous, isMonth ? 'este mes' : 'en el periodo');
               return (
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4" data-testid="results-kpis">
                   <KpiCard label="Ingresos reconocidos" value={formatPen(n.income.value)} delta={n.income.delta} deltaGood={n.income.goodWhen} note={n.income.phrase} />
@@ -98,8 +103,10 @@ export function ResultsCashPage() {
             {tab === 'summary' ? (
               <BusinessSummaryView
                 mes={month}
+                label={report.label}
+                isMonth={isMonth}
                 pendingReview={report.pendingReview}
-                budget={buildBudgetStatus({
+                budget={!isMonth ? undefined : buildBudgetStatus({
                   mes: month, today: new Date().toISOString().slice(0, 10), budgets: report.budgets, movements: report.movements,
                   units, categories, categoryName: (c, id) => (c ? CATEGORY_SHORT[c.code] ?? c.name : String(id)),
                 })}
@@ -108,6 +115,8 @@ export function ResultsCashPage() {
                   mes: month, results: r, previous: report.previous, cash: report.cash, movements: report.movements,
                   evolution: report.evolution,
                   projectsReceivable: report.projectsReceivable,
+                  months: report.months,
+                  previousLabel: report.previousLabel || undefined,
                   categoryNames: new Map(categories.map((c) => [c.id, CATEGORY_SHORT[c.code] ?? c.name])),
                   unitNames: new Map(units.map((u) => [u.code, u.name])),
                 })}
@@ -127,10 +136,10 @@ export function ResultsCashPage() {
                   <div className="space-y-4">
                     <ReconciliationCard results={r} />
                     <Card>
-                      <h2 className="bb-display font-semibold text-ink text-base mb-2">CORP sin repartir</h2>
+                      <h2 className="bb-display font-semibold text-ink text-base mb-2">CORP sin repartir{!isMonth && <span className="bb-body text-xs text-ink-soft font-normal"> · suma de los meses</span>}</h2>
                       <p className="bb-mono text-xl text-ink" data-testid="corp-unassigned">{formatPen(r.corpUnassigned)}</p>
                       <p className="bb-body text-xs text-ink-soft mt-1">
-                        {alloc?.status === 'SIN REPARTIR'
+                        {!isMonth ? 'Gasto compartido de CORP que no recibió reparto, sumando cada mes del periodo.' : alloc?.status === 'SIN REPARTIR'
                           ? 'Todo el gasto compartido de CORP sigue sin repartir: aún no hay reparto documentado para este mes.'
                           : 'Parte del gasto compartido que no recibió reparto este mes.'}
                       </p>
@@ -138,6 +147,7 @@ export function ResultsCashPage() {
                   </div>
                   <CashSummary
                     cash={report.cash}
+                    scope={isMonth ? 'del mes' : 'del periodo'}
                     onTrace={(title, ids) => setTrace({ title, ids })}
                     onSaveOpening={async (v) => { await setOpeningCash(v); await refetch(); }}
                   />
