@@ -33,7 +33,7 @@ Probar a mano la carga por la página: `npm run dev:vacio` (arranca sin datos de
 
 ## Todo en un solo paso (recomendado)
 
-`SUBIR-TODO.sql`: cambia las 3 líneas marcadas arriba (SI, correo y contraseña de Henry), pega todo en SQL Editor y Run. Hace las 4 migraciones, respaldo y limpieza, carga del Excel, cuenta de Henry y la verificación (16 filas OK). Se puede repetir.
+`SUBIR-TODO.sql`: cambia las 3 líneas marcadas arriba (SI, correo y contraseña de Henry), pega todo en SQL Editor y Run. Hace el esquema completo y las 6 migraciones, respaldo y limpieza, carga del Excel, cuenta de Henry y la verificación (16 filas OK). Se puede repetir.
 
 ## Login con contraseña (nube)
 

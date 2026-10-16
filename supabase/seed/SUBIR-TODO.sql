@@ -8,7 +8,7 @@
 --   3. Al final aparece una tabla de 16 filas: todas deben decir OK.
 --   4. Borra la contraseña del editor (no guardes este texto con la contraseña).
 --
--- Hace, en orden: 4 migraciones (seguras, se pueden repetir) → copia de respaldo de los datos
+-- Hace, en orden: esquema completo + 6 migraciones (seguras, se pueden repetir) → copia de respaldo de los datos
 -- actuales (tablas respaldo_20261016_*) y limpieza → carga del Excel → cuenta de Henry → verificación.
 -- Si algo falla, se detiene ahí y muestra el motivo en rojo.
 -- ==============================================================================
@@ -27,7 +27,650 @@ BEGIN
 END $$;
 
 -- ############################################################################
--- MIGRACIÓN 20261016000001_work_hours_time_range.sql
+-- ESQUEMA schema_completo_blackbelt.sql
+-- ############################################################################
+-- ==============================================================================
+-- BLACKBELT GROUP — ESQUEMA COMPLETO Y DATOS INICIALES (MODELO C)
+-- Pega este script completo en el SQL Editor de Supabase y dale a "Run"
+-- ==============================================================================
+
+-- 1. UNIDADES DE NEGOCIO (business_units)
+CREATE TABLE IF NOT EXISTS business_units (
+  id SERIAL PRIMARY KEY,
+  code VARCHAR(10) NOT NULL UNIQUE,
+  name VARCHAR(150) NOT NULL,
+  color VARCHAR(7) NOT NULL DEFAULT '#15130F',
+  status VARCHAR(20) NOT NULL DEFAULT 'Activo',
+  scope TEXT
+);
+
+INSERT INTO business_units (id, code, name, color, status, scope)
+VALUES
+  (1, 'UN01', 'Ingeniería y Productividad', '#E67E22', 'Activo', 'Consultoría de operaciones, calidad y productividad'),
+  (2, 'UN02', 'Tecnología y Transformación Digital', '#1677FF', 'Activo', 'Software, datos, automatización y soluciones digitales'),
+  (3, 'UN03', 'Investigación y Desarrollo', '#6C3FC5', 'Activo', 'Investigación, tesis, prototipos y estudios técnicos'),
+  (4, 'UN04', 'Ingeniería Especializada', '#159957', 'Activo', 'Geofísica y otros servicios especializados validados'),
+  (5, 'UN05', 'Emprendimiento y Desarrollo Empresarial', '#007080', 'Activo', 'Consultoría, innovación y desarrollo de negocios'),
+  (6, 'CORP', 'Corporativo / General', '#C9A23A', 'Activo', 'Gastos que benefician al conjunto o no tienen asignación validada')
+ON CONFLICT (id) DO UPDATE SET
+  code = EXCLUDED.code,
+  name = EXCLUDED.name,
+  color = EXCLUDED.color,
+  status = EXCLUDED.status,
+  scope = EXCLUDED.scope;
+
+SELECT setval(pg_get_serial_sequence('business_units', 'id'), COALESCE((SELECT MAX(id) FROM business_units), 1));
+
+-- 2. ÁREAS FUNCIONALES (areas)
+CREATE TABLE IF NOT EXISTS areas (
+  id SERIAL PRIMARY KEY,
+  code VARCHAR(15) NOT NULL UNIQUE,
+  name VARCHAR(150) NOT NULL,
+  type VARCHAR(20) NOT NULL CHECK (type IN ('General', 'Específica')),
+  business_unit_id INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
+  description TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+INSERT INTO areas (id, code, name, type, business_unit_id, description)
+VALUES
+  (1,  'DIR',     'Dirección General',                   'General',    NULL, 'Gestión estratégica, dirección y alianzas'),
+  (2,  'MKT',     'Marketing y Ventas Corporativo',      'General',    NULL, 'Promoción propia y captación para cualquiera de las cinco unidades'),
+  (3,  'ADM',     'Administración y Servicios',          'General',    NULL, 'Telecomunicaciones generales, oficina, logística administrativa'),
+  (4,  'FIN',     'Finanzas y Contabilidad',             'General',    NULL, 'Tesorería, costos, presupuestos, contabilidad'),
+  (5,  'RRHH',    'Talento Humano',                      'General',    NULL, 'Contratación, personas, especialistas'),
+  (6,  'CAL',     'Calidad y Control',                   'General',    NULL, 'Control de entregables y procesos internos'),
+  (7,  'U01-OPS', 'Operaciones y Diagnóstico',           'Específica', 1,    'Diagnóstico y optimización operativa'),
+  (8,  'U01-MEJ', 'Mejora Continua y Productividad',     'Específica', 1,    'Lean, indicadores y productividad'),
+  (9,  'U01-CAL', 'Calidad de Procesos',                 'Específica', 1,    'Calidad y estandarización en clientes'),
+  (10, 'U02-DEV', 'Desarrollo de Software',              'Específica', 2,    'Aplicaciones y sistemas'),
+  (11, 'U02-DAT', 'Datos e Inteligencia de Negocios',    'Específica', 2,    'BI, analítica y tableros'),
+  (12, 'U02-IMP', 'Implementación Tecnológica',          'Específica', 2,    'Soporte e implantación'),
+  (13, 'U03-MET', 'Metodología e Investigación',         'Específica', 3,    'Diseño y análisis metodológico'),
+  (14, 'U03-TEC', 'Desarrollo Técnico y Experimental',   'Específica', 3,    'Prototipos, modelos y ensayos'),
+  (15, 'U03-REV', 'Revisión y Calidad Científica',       'Específica', 3,    'Revisión técnica y científica'),
+  (16, 'U04-CAM', 'Operaciones de Campo',                'Específica', 4,    'Adquisición y levantamiento de campo'),
+  (17, 'U04-INT', 'Procesamiento e Interpretación',      'Específica', 4,    'Procesamiento de datos técnicos'),
+  (18, 'U05-INN', 'Innovación y Emprendimiento',         'Específica', 5,    'Innovación, ideación y prototipado de negocios'),
+  (19, 'U05-CON', 'Consultoría Empresarial',             'Específica', 5,    'Gestión de empresas y estrategia'),
+  (20, 'U05-CAP', 'Capacitación y Formación Profesional','Específica', 5,    'Diseñar, organizar y ejecutar programas de capacitación'),
+  (21, 'U05-MER', 'Marketing para Clientes',             'Específica', 5,    'Marketing facturable a clientes externos')
+ON CONFLICT (code) DO UPDATE SET
+  name = EXCLUDED.name,
+  type = EXCLUDED.type,
+  business_unit_id = EXCLUDED.business_unit_id,
+  description = EXCLUDED.description;
+
+SELECT setval(pg_get_serial_sequence('areas', 'id'), COALESCE((SELECT MAX(id) FROM areas), 1));
+
+-- 3. CATEGORÍAS DE COSTO (cost_categories) — 17 Modelo C
+CREATE TABLE IF NOT EXISTS cost_categories (
+  id SERIAL PRIMARY KEY,
+  code VARCHAR(10) NOT NULL UNIQUE,
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  main_rule TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+INSERT INTO cost_categories (id, code, name, description, main_rule)
+VALUES
+  (1,  'MO',   'Mano de obra y especialistas',       'Pago a especialistas, personal por proyecto, honorarios', 'Puede ser directo, atribuible o compartido'),
+  (2,  'PUB',  'Publicidad y captación',              'Meta Ads, Google Ads, diseño de campañas', 'Área MKT; asignar a unidad anunciada'),
+  (3,  'SOFT', 'Software y herramientas digitales',  'Canva, plataformas de IA, videollamadas', 'Asignar al uso real; si transversal CORP'),
+  (4,  'SERV', 'Servicios y telecomunicaciones',     'Bitel, internet, luz, alquiler de servicios', 'CORP si es general; unidad si exclusivo'),
+  (5,  'MAT',  'Materiales e insumos',                'Consumibles para desarrollo o ejecución', 'Directo si pertenece a un proyecto'),
+  (6,  'MAQ',  'Maquinaria y equipos',                'Máquinas, instrumentos, equipos', 'Normalmente activo; costo por uso/depreciación'),
+  (7,  'MOV',  'Transporte y viáticos',               'Traslados, campo, alojamientos, movilidad', 'Directo para proyecto o compartido'),
+  (8,  'TERC', 'Servicios tercerizados',             'Subcontratistas, laboratorios y soporte externo', 'Asignar a proyecto cuando corresponda'),
+  (9,  'ADM',  'Administración y trámites',           'Notaría, RUC, servicios legales, trámites', 'CORP si benefician a empresa completa'),
+  (10, 'CAP',  'Capacitación',                        'Cursos y certificaciones', 'Según beneficiario real'),
+  (11, 'BAN',  'Comisiones bancarias',                'Comisiones de banco, pasarelas', 'Unidad si imputable o CORP'),
+  (12, 'MANT', 'Mantenimiento',                       'Repuestos, mantenimiento de equipos', 'Unidad específica o compartido'),
+  (13, 'ACT',  'Adquisición de activos',              'Compra de maquinaria, computadoras, equipos', 'No sumar como gasto operativo directo'),
+  (14, 'CXC',  'Cobros de clientes',                  'Entrada de efectivo por contratos', 'Flujo de caja; no duplicar ingreso'),
+  (15, 'CXP',  'Pagos a proveedores',                 'Salida de efectivo de obligaciones', 'Flujo de caja; no duplicar gasto'),
+  (16, 'SOC',  'Aportes y retiros de socios',         'Financiamiento o retiro patrimonial', 'No confundir con rentabilidad'),
+  (17, 'OTR',  'Otros',                               'Conceptos sin categoría específica', 'Usar solo justificando clasificación')
+ON CONFLICT (id) DO UPDATE SET
+  code = EXCLUDED.code,
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  main_rule = EXCLUDED.main_rule;
+
+SELECT setval(pg_get_serial_sequence('cost_categories', 'id'), COALESCE((SELECT MAX(id) FROM cost_categories), 1));
+
+-- 4. CLIENTES (clients)
+CREATE TABLE IF NOT EXISTS clients (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  client_type VARCHAR(20) DEFAULT 'Persona',
+  doc_number VARCHAR(20),
+  phone VARCHAR(30),
+  email VARCHAR(100),
+  location VARCHAR(150),
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+INSERT INTO clients (id, name, client_type, doc_number, phone, email, location, notes)
+VALUES
+  (1, 'Wilmer Sánchez Mamani', 'Persona', '45678901', '99999999', 'wsanchez@gmail.com', 'Puno', 'Cliente de desarrollo de tesis e investigación técnica'),
+  (2, 'Tania Aros Rengifo', 'Persona', '71038520', '951234567', 'taros@outlook.com', 'Arequipa', 'Proyectos de transformación digital y ciberseguridad'),
+  (3, 'Carlos Mendoza Torres', 'Persona', '09854321', '984561230', 'cmendoza@empresa.pe', 'Cusco', 'Estudios de impacto ambiental'),
+  (4, 'Empresa Minera Andes S.A.', 'Empresa', '20538921710', '958741236', 'contacto@mineraandes.com', 'Lima / Moquegua', 'Ingeniería estructural y geofísica'),
+  (5, 'Municipalidad de Puno', 'Empresa', '20109874563', '051364789', 'alcaldia@munipuno.gob.pe', 'Puno', 'Modernización y consultoría operativa'),
+  (6, 'Patricia Quispe Huanca', 'Persona', '41872659', '978523641', 'pquispe@gmail.com', 'Juliaca', 'Emprendimiento y desarrollo de startup')
+ON CONFLICT (id) DO NOTHING;
+
+SELECT setval(pg_get_serial_sequence('clients', 'id'), COALESCE((SELECT MAX(id) FROM clients), 1));
+
+-- 5. PROYECTOS (projects)
+CREATE TABLE IF NOT EXISTS projects (
+  id SERIAL PRIMARY KEY,
+  code VARCHAR(30),
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,
+  business_unit_id INTEGER NOT NULL REFERENCES business_units(id) ON DELETE RESTRICT,
+  area_id INTEGER REFERENCES areas(id) ON DELETE SET NULL,
+  name VARCHAR(200) NOT NULL,
+  service VARCHAR(150),
+  manager VARCHAR(150),
+  start_date DATE,
+  end_date DATE,
+  contracted_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  status VARCHAR(20) NOT NULL DEFAULT 'activo' CHECK (status IN ('activo', 'finalizado', 'cancelado')),
+  notes TEXT,
+  contract_url TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+INSERT INTO projects (id, code, client_id, business_unit_id, name, service, manager, start_date, end_date, contracted_amount, status, notes)
+VALUES
+  (1, 'PRY-2026-001', 1, 3, 'Desarrollo de Tesis e Investigación Experimental', 'DESARROLLO DE TESIS', 'HENRY TORRES RIVERA', '2024-02-01', '2024-07-31', 3000.00, 'activo', 'Proyecto Modelo C documentado en Excel maestro'),
+  (2, 'PRY-2024-002', 2, 2, 'Automatización de Flujos y ERP Cloud', 'TRANSFORMACIÓN DIGITAL', 'JUAN PÉREZ VÁSQUEZ', '2024-02-15', '2024-05-15', 8500.00, 'activo', 'Despliegue e integración tecnológica'),
+  (3, 'PRY-2024-003', 3, 1, 'Optimización de Procesos de Planta', 'CONSULTORÍA LEAN', 'HENRY TORRES RIVERA', '2024-03-01', '2024-06-30', 12000.00, 'activo', 'Diagnóstico operacional y reducción de mermas'),
+  (4, 'PRY-2024-004', 4, 4, 'Prospección Geofísica y Modelado 3D', 'GEOFÍSICA Y SUELOS', 'MARCO GUZMÁN', '2024-03-20', '2024-04-30', 25000.00, 'finalizado', 'Levantamiento de campo y procesado sísmico'),
+  (5, 'PRY-2024-005', 5, 1, 'Reingeniería Administrativa Municipal', 'GESTIÓN PÚBLICA', 'HENRY TORRES RIVERA', '2024-04-05', '2024-08-30', 18000.00, 'activo', 'Modernización de trámites y procesos'),
+  (6, 'PRY-2024-006', 6, 5, 'Incubación y Modelo de Negocio Agro-Tech', 'INCUBACIÓN STARTUP', 'SOFÍA CASTRO', '2024-05-12', '2024-09-30', 6000.00, 'activo', 'Validación comercial y prototipado')
+ON CONFLICT (id) DO NOTHING;
+
+SELECT setval(pg_get_serial_sequence('projects', 'id'), COALESCE((SELECT MAX(id) FROM projects), 1));
+
+-- 6. PAGOS DE PROYECTOS (project_payments)
+CREATE TABLE IF NOT EXISTS project_payments (
+  id SERIAL PRIMARY KEY,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  amount NUMERIC(12, 2) NOT NULL,
+  payment_date DATE NOT NULL,
+  payment_method VARCHAR(50),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+INSERT INTO project_payments (id, project_id, amount, payment_date, payment_method)
+VALUES
+  (1, 1, 1500.00, '2024-02-05', 'transferencia'),
+  (2, 1, 500.00,  '2024-03-01', 'transferencia'),
+  (3, 2, 4250.00, '2024-02-20', 'transferencia'),
+  (4, 3, 4000.00, '2024-03-10', 'transferencia'),
+  (5, 4, 25000.00,'2024-04-25', 'transferencia'),
+  (6, 5, 6000.00, '2024-04-15', 'cheque')
+ON CONFLICT (id) DO NOTHING;
+
+SELECT setval(pg_get_serial_sequence('project_payments', 'id'), COALESCE((SELECT MAX(id) FROM project_payments), 1));
+
+-- 7. HERRAMIENTAS (tools)
+CREATE TABLE IF NOT EXISTS tools (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  scope VARCHAR(20) NOT NULL CHECK (scope IN ('exclusive', 'shared', 'general')),
+  exclusive_business_unit_id INTEGER REFERENCES business_units(id) ON DELETE SET NULL,
+  monthly_reference_cost NUMERIC(10, 2),
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+INSERT INTO tools (id, name, scope, exclusive_business_unit_id, monthly_reference_cost, notes)
+VALUES
+  (1, 'Google Workspace', 'general',   NULL, 450.00, 'Plataforma institucional corporativa — beneficio común'),
+  (2, 'Asana',            'shared',    NULL, 280.00, 'Gestión de proyectos colaborativos'),
+  (3, 'AutoCAD LT',       'exclusive', 4,    320.00, 'Licencia especializada para levantamiento y cálculo')
+ON CONFLICT (id) DO NOTHING;
+
+SELECT setval(pg_get_serial_sequence('tools', 'id'), COALESCE((SELECT MAX(id) FROM tools), 1));
+
+-- 8. HERRAMIENTAS COMPARTIDAS (tool_business_units)
+CREATE TABLE IF NOT EXISTS tool_business_units (
+  id SERIAL PRIMARY KEY,
+  tool_id INTEGER NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
+  business_unit_id INTEGER NOT NULL REFERENCES business_units(id) ON DELETE CASCADE,
+  default_pct NUMERIC(5, 2) NOT NULL,
+  UNIQUE(tool_id, business_unit_id)
+);
+
+INSERT INTO tool_business_units (id, tool_id, business_unit_id, default_pct)
+VALUES
+  (1, 2, 1, 60.00),
+  (2, 2, 2, 40.00)
+ON CONFLICT (id) DO NOTHING;
+
+SELECT setval(pg_get_serial_sequence('tool_business_units', 'id'), COALESCE((SELECT MAX(id) FROM tool_business_units), 1));
+
+-- 9. TRANSACCIONES / GASTOS (transactions)
+CREATE TABLE IF NOT EXISTS transactions (
+  id SERIAL PRIMARY KEY,
+  description VARCHAR(255) NOT NULL,
+  amount NUMERIC(12, 2) NOT NULL,
+  transaction_date DATE NOT NULL,
+  payment_method VARCHAR(50),
+  cost_category_id INTEGER NOT NULL REFERENCES cost_categories(id) ON DELETE RESTRICT,
+  tool_id INTEGER REFERENCES tools(id) ON DELETE SET NULL,
+  project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE
+);
+
+INSERT INTO transactions (id, description, amount, transaction_date, payment_method, cost_category_id, tool_id, project_id)
+VALUES
+  (1, 'Dirección Estratégica — honorarios mensuales', 701.50, '2024-09-30', 'transferencia', 1, NULL, NULL),
+  (2, 'Marketing digital — campaña mensual', 630.06, '2024-09-30', 'tarjeta', 2, NULL, NULL),
+  (3, 'Investigación y Desarrollo — investigador externo', 563.90, '2024-09-30', 'transferencia', 1, NULL, NULL),
+  (4, 'Google Workspace — renovación mensual', 450.00, '2024-10-01', 'tarjeta', 3, 1, NULL),
+  (5, 'Asana — suscripción de equipo', 280.00, '2024-10-01', 'tarjeta', 3, 2, NULL),
+  (6, 'AutoCAD LT — licencia mensual', 320.00, '2024-10-01', 'tarjeta', 3, 3, NULL)
+ON CONFLICT (id) DO NOTHING;
+
+SELECT setval(pg_get_serial_sequence('transactions', 'id'), COALESCE((SELECT MAX(id) FROM transactions), 1));
+
+-- 10. REPARTO DE TRANSACCIONES (transaction_allocations)
+CREATE TABLE IF NOT EXISTS transaction_allocations (
+  id SERIAL PRIMARY KEY,
+  transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+  business_unit_id INTEGER NOT NULL REFERENCES business_units(id) ON DELETE CASCADE,
+  pct NUMERIC(5, 2) NOT NULL
+);
+
+INSERT INTO transaction_allocations (id, transaction_id, business_unit_id, pct)
+VALUES
+  (1, 1, 1, 20.00), (2, 1, 2, 20.00), (3, 1, 3, 20.00), (4, 1, 4, 20.00), (5, 1, 5, 20.00),
+  (6, 2, 1, 25.00), (7, 2, 2, 25.00), (8, 2, 3, 25.00), (9, 2, 5, 25.00),
+  (10, 3, 3, 100.00),
+  (11, 4, 1, 20.00), (12, 4, 2, 20.00), (13, 4, 3, 20.00), (14, 4, 4, 20.00), (15, 4, 5, 20.00),
+  (16, 5, 1, 60.00), (17, 5, 2, 40.00),
+  (18, 6, 4, 100.00)
+ON CONFLICT (id) DO NOTHING;
+
+SELECT setval(pg_get_serial_sequence('transaction_allocations', 'id'), COALESCE((SELECT MAX(id) FROM transaction_allocations), 1));
+
+-- ------------------------------------------------------------------------------
+-- POLÍTICAS RLS (Permitir lectura y escritura con clave anónima para la app)
+-- ------------------------------------------------------------------------------
+ALTER TABLE business_units ENABLE ROW LEVEL SECURITY;
+ALTER TABLE areas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cost_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tool_business_units ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transaction_allocations ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  -- business_units
+  DROP POLICY IF EXISTS "anon_all_business_units" ON business_units;
+  CREATE POLICY "anon_all_business_units" ON business_units FOR ALL USING (true) WITH CHECK (true);
+
+  -- areas
+  DROP POLICY IF EXISTS "anon_all_areas" ON areas;
+  CREATE POLICY "anon_all_areas" ON areas FOR ALL USING (true) WITH CHECK (true);
+
+  -- cost_categories
+  DROP POLICY IF EXISTS "anon_all_cost_categories" ON cost_categories;
+  CREATE POLICY "anon_all_cost_categories" ON cost_categories FOR ALL USING (true) WITH CHECK (true);
+
+  -- clients
+  DROP POLICY IF EXISTS "anon_all_clients" ON clients;
+  CREATE POLICY "anon_all_clients" ON clients FOR ALL USING (true) WITH CHECK (true);
+
+  -- projects
+  DROP POLICY IF EXISTS "anon_all_projects" ON projects;
+  CREATE POLICY "anon_all_projects" ON projects FOR ALL USING (true) WITH CHECK (true);
+
+  -- project_payments
+  DROP POLICY IF EXISTS "anon_all_project_payments" ON project_payments;
+  CREATE POLICY "anon_all_project_payments" ON project_payments FOR ALL USING (true) WITH CHECK (true);
+
+  -- tools
+  DROP POLICY IF EXISTS "anon_all_tools" ON tools;
+  CREATE POLICY "anon_all_tools" ON tools FOR ALL USING (true) WITH CHECK (true);
+
+  -- tool_business_units
+  DROP POLICY IF EXISTS "anon_all_tool_business_units" ON tool_business_units;
+  CREATE POLICY "anon_all_tool_business_units" ON tool_business_units FOR ALL USING (true) WITH CHECK (true);
+
+  -- transactions
+  DROP POLICY IF EXISTS "anon_all_transactions" ON transactions;
+  CREATE POLICY "anon_all_transactions" ON transactions FOR ALL USING (true) WITH CHECK (true);
+
+  -- transaction_allocations
+  DROP POLICY IF EXISTS "anon_all_transaction_allocations" ON transaction_allocations;
+  CREATE POLICY "anon_all_transaction_allocations" ON transaction_allocations FOR ALL USING (true) WITH CHECK (true);
+END $$;
+
+
+-- ############################################################################
+-- ESQUEMA 20261014000001_kanban_sprints_tasks.sql
+-- ############################################################################
+-- ==============================================================================
+-- Migración: 20261014000001_kanban_sprints_tasks.sql
+-- Descripción: Módulo Kanban/Scrum — sprints y tareas por proyecto.
+--   * specialists : responsables de tareas (Principio 8: especialistas ≠ usuarios,
+--                   no requieren login; el vínculo a `users` se agrega cuando exista).
+--                   Se crea solo si no existe (no toca una tabla ya creada).
+--   * sprints     : ciclos de trabajo de un proyecto (projects.id).
+--   * tasks       : tarjetas del tablero. Estado = motivo belt-stripe oficial:
+--                   backlog → por_hacer → en_curso → en_revision → hecho.
+-- No duplica catálogos: referencia projects y specialists. Idempotente.
+-- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- 0. GUARDA: si `specialists` ya existe con otra estructura, abortar sin tocar nada
+-- ------------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF to_regclass('public.specialists') IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'specialists'
+         AND column_name IN ('id', 'full_name')
+       GROUP BY table_name HAVING COUNT(*) = 2
+     ) THEN
+    RAISE EXCEPTION 'La tabla specialists ya existe con otra estructura (se esperan id y full_name). Revisar antes de migrar.';
+  END IF;
+END $$;
+
+-- ------------------------------------------------------------------------------
+-- 1. ESPECIALISTAS (responsables)
+-- ------------------------------------------------------------------------------
+-- Los responsables iniciales se cargan SOLO si la tabla la crea esta migración
+-- (si ya existía, no se le agregan filas).
+DO $$
+DECLARE
+  ya_existia BOOLEAN := to_regclass('public.specialists') IS NOT NULL;
+BEGIN
+  CREATE TABLE IF NOT EXISTS specialists (
+    id SERIAL PRIMARY KEY,
+    full_name VARCHAR(150) NOT NULL,
+    email VARCHAR(100),
+    specialty VARCHAR(100),
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  );
+
+  IF NOT ya_existia THEN
+    -- Responsables ya presentes como "manager" en los proyectos del Modelo C
+    INSERT INTO specialists (id, full_name, specialty) VALUES
+      (1, 'Henry Torres Rivera', 'Gerente general'),
+      (2, 'Juan Pérez Vásquez',  'Transformación digital'),
+      (3, 'Marco Guzmán',        'Geofísica y suelos'),
+      (4, 'Sofía Castro',        'Incubación y emprendimiento');
+    PERFORM setval(pg_get_serial_sequence('specialists', 'id'), 4);
+  END IF;
+END $$;
+
+-- ------------------------------------------------------------------------------
+-- 2. SPRINTS
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS sprints (
+  id SERIAL PRIMARY KEY,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name VARCHAR(100) NOT NULL,
+  goal TEXT,
+  start_date DATE,
+  end_date DATE,
+  status VARCHAR(20) NOT NULL DEFAULT 'planificado'
+    CHECK (status IN ('planificado', 'activo', 'cerrado')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CHECK (end_date IS NULL OR start_date IS NULL OR end_date >= start_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sprints_project ON sprints(project_id);
+
+-- ------------------------------------------------------------------------------
+-- 3. TAREAS (tarjetas del tablero)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS tasks (
+  id SERIAL PRIMARY KEY,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  sprint_id INTEGER REFERENCES sprints(id) ON DELETE SET NULL,
+  title VARCHAR(200) NOT NULL,
+  description TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'backlog'
+    CHECK (status IN ('backlog', 'por_hacer', 'en_curso', 'en_revision', 'hecho')),
+  assignee_id INTEGER REFERENCES specialists(id) ON DELETE SET NULL,
+  due_date DATE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_tasks_project  ON tasks(project_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_sprint   ON tasks(sprint_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee_id);
+
+-- ------------------------------------------------------------------------------
+-- 4. POLÍTICAS RLS (mismo criterio que el resto de tablas: clave anónima de la app)
+-- ------------------------------------------------------------------------------
+ALTER TABLE specialists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sprints     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks       ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  DROP POLICY IF EXISTS "anon_all_specialists" ON specialists;
+  CREATE POLICY "anon_all_specialists" ON specialists FOR ALL USING (true) WITH CHECK (true);
+
+  DROP POLICY IF EXISTS "anon_all_sprints" ON sprints;
+  CREATE POLICY "anon_all_sprints" ON sprints FOR ALL USING (true) WITH CHECK (true);
+
+  DROP POLICY IF EXISTS "anon_all_tasks" ON tasks;
+  CREATE POLICY "anon_all_tasks" ON tasks FOR ALL USING (true) WITH CHECK (true);
+END $$;
+
+
+-- ############################################################################
+-- ESQUEMA 20261015000001_modelo_c_movements_budgets_roles.sql
+-- ############################################################################
+-- ==============================================================================
+-- Migración: 20261015000001_modelo_c_movements_budgets_roles.sql
+-- Descripción: Tablas del Modelo C que faltaban para cerrar el sistema:
+--   movements (06), budgets (07), corp_allocation (08), app_settings (saldo inicial de caja),
+--   roles + users, work_hours.
+--
+-- SEGURA PARA DATOS EXISTENTES: solo CREA tablas nuevas (IF NOT EXISTS) y siembra roles
+-- y saldo inicial si faltan. No altera, borra ni migra `transactions`, `tools`,
+-- `tool_business_units` ni `transaction_allocations` (esquema anterior; quedan solo de
+-- referencia hasta que Gerencia confirme cómo reclasificar ese historial).
+-- Idempotente: se puede ejecutar más de una vez.
+-- Requiere: catálogos (20261012000001), clients/projects y Kanban (20261014000001, crea specialists).
+--
+-- Valores CALCULADOS que NO se guardan como columna: mes y control de movements,
+-- resultados, caja, saldo pendiente. Se derivan en el dominio (src/features/*/domain).
+-- ==============================================================================
+
+-- ------------------------------------------------------------------------------
+-- 0. Guarda: dependencias mínimas
+-- ------------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF to_regclass('public.business_units') IS NULL OR to_regclass('public.areas') IS NULL
+     OR to_regclass('public.cost_categories') IS NULL OR to_regclass('public.projects') IS NULL
+     OR to_regclass('public.specialists') IS NULL OR to_regclass('public.tasks') IS NULL THEN
+    RAISE EXCEPTION 'Faltan tablas previas (business_units, areas, cost_categories, projects, specialists, tasks). Ejecuta antes las migraciones 20261012000001 y 20261014000001.';
+  END IF;
+END $$;
+
+-- ------------------------------------------------------------------------------
+-- 1. movements — libro único (hoja 06_MOVIMIENTOS)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS movements (
+  id SERIAL PRIMARY KEY,
+  movement_code VARCHAR(20) NOT NULL UNIQUE,            -- ID visible MOV-AAAA-NNNN (trazabilidad)
+  movement_date DATE NOT NULL,
+  record_type VARCHAR(20) NOT NULL CHECK (record_type IN (
+    'INGRESO_RECONOCIDO', 'COSTO_RECONOCIDO', 'COBRO', 'PAGO',
+    'APORTE_SOCIO', 'RETIRO_SOCIO', 'COMPRA_ACTIVO')),
+  amount NUMERIC(14, 2) NOT NULL CHECK (amount >= 0),   -- 0 queda marcado INCOMPLETO por el control
+  business_unit_id INTEGER NOT NULL REFERENCES business_units(id) ON DELETE RESTRICT, -- BENEFICIARIA
+  area_id INTEGER NOT NULL REFERENCES areas(id) ON DELETE RESTRICT,                   -- GESTORA (≠ beneficiaria)
+  responsible VARCHAR(150),
+  cost_category_id INTEGER NOT NULL REFERENCES cost_categories(id) ON DELETE RESTRICT,
+  expense_class VARCHAR(12) NOT NULL CHECK (expense_class IN ('DIRECTO', 'ATRIBUIBLE', 'COMPARTIDO', 'NO_APLICA')),
+  project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+  counterparty VARCHAR(150),                            -- tercero / proveedor
+  detail TEXT,
+  payment_method VARCHAR(50),
+  voucher_number VARCHAR(60),
+  status VARCHAR(10) NOT NULL DEFAULT 'BORRADOR' CHECK (status IN ('BORRADOR', 'VALIDADO')),
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_movements_date     ON movements (movement_date);
+CREATE INDEX IF NOT EXISTS idx_movements_unit     ON movements (business_unit_id);
+CREATE INDEX IF NOT EXISTS idx_movements_project  ON movements (project_id);
+CREATE INDEX IF NOT EXISTS idx_movements_status   ON movements (status);
+
+-- CORP por defecto (regla 1): se resuelve por código, no por id fijo.
+CREATE OR REPLACE FUNCTION bb_default_corp_unit() RETURNS INTEGER
+LANGUAGE sql STABLE AS $$ SELECT id FROM business_units WHERE code = 'CORP' LIMIT 1 $$;
+
+ALTER TABLE movements ALTER COLUMN business_unit_id SET DEFAULT bb_default_corp_unit();
+
+-- ------------------------------------------------------------------------------
+-- 2. budgets — una fila por (mes, unidad, área, categoría) (hoja 07_PRESUPUESTOS)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS budgets (
+  id SERIAL PRIMARY KEY,
+  month CHAR(7) NOT NULL CHECK (month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+  business_unit_id INTEGER NOT NULL REFERENCES business_units(id) ON DELETE RESTRICT,
+  area_id INTEGER NOT NULL REFERENCES areas(id) ON DELETE RESTRICT,
+  cost_category_id INTEGER NOT NULL REFERENCES cost_categories(id) ON DELETE RESTRICT,
+  income_target NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (income_target >= 0),
+  cost_target NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (cost_target >= 0),
+  comment TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT uq_budgets_combination UNIQUE (month, business_unit_id, area_id, cost_category_id)
+);
+
+-- ------------------------------------------------------------------------------
+-- 3. corp_allocation — reparto mensual de gasto CORP a UN01–UN05 (hoja 08_REPARTO)
+--    Una fila por (mes, unidad comercial). Sin filas = 0 % = "SIN REPARTIR".
+--    Nunca hay reparto por defecto ni parejo.
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS corp_allocation (
+  id SERIAL PRIMARY KEY,
+  month CHAR(7) NOT NULL CHECK (month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+  business_unit_id INTEGER NOT NULL REFERENCES business_units(id) ON DELETE CASCADE,
+  pct NUMERIC(6, 3) NOT NULL DEFAULT 0 CHECK (pct >= 0 AND pct <= 100),
+  note TEXT,                                            -- criterio documentado
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT uq_corp_allocation UNIQUE (month, business_unit_id)
+);
+
+-- CORP no puede recibir reparto (solo UN01–UN05)
+CREATE OR REPLACE FUNCTION bb_check_allocation_unit() RETURNS TRIGGER
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM business_units WHERE id = NEW.business_unit_id AND code = 'CORP') THEN
+    RAISE EXCEPTION 'corp_allocation: CORP no puede recibir reparto (solo UN01–UN05).';
+  END IF;
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS trg_corp_allocation_unit ON corp_allocation;
+CREATE TRIGGER trg_corp_allocation_unit
+  BEFORE INSERT OR UPDATE ON corp_allocation
+  FOR EACH ROW EXECUTE FUNCTION bb_check_allocation_unit();
+
+-- ------------------------------------------------------------------------------
+-- 4. app_settings — configuración (saldo inicial de caja del Modelo C)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS app_settings (
+  key VARCHAR(60) PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+-- Saldo inicial de caja: 500 según 00_INICIO del Excel oficial. Editable; no se pisa si ya existe.
+INSERT INTO app_settings (key, value) VALUES ('opening_cash', '500')
+ON CONFLICT (key) DO NOTHING;
+
+-- ------------------------------------------------------------------------------
+-- 5. roles y users
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS roles (
+  id SERIAL PRIMARY KEY,
+  code VARCHAR(20) NOT NULL UNIQUE CHECK (code IN ('admin', 'colaborador')),
+  name VARCHAR(60) NOT NULL
+);
+
+INSERT INTO roles (code, name) VALUES
+  ('admin', 'Administrador'),
+  ('colaborador', 'Colaborador')
+ON CONFLICT (code) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(150) NOT NULL UNIQUE,
+  full_name VARCHAR(150) NOT NULL,
+  role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
+  specialist_id INTEGER REFERENCES specialists(id) ON DELETE SET NULL,   -- especialista ≠ usuario
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ------------------------------------------------------------------------------
+-- 6. work_hours — horas-hombre por persona, proyecto y tarea
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS work_hours (
+  id SERIAL PRIMARY KEY,
+  specialist_id INTEGER NOT NULL REFERENCES specialists(id) ON DELETE RESTRICT,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+  work_date DATE NOT NULL,
+  hours NUMERIC(5, 2) NOT NULL CHECK (hours > 0 AND hours <= 24),
+  description TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_work_hours_project    ON work_hours (project_id);
+CREATE INDEX IF NOT EXISTS idx_work_hours_specialist ON work_hours (specialist_id);
+CREATE INDEX IF NOT EXISTS idx_work_hours_date       ON work_hours (work_date);
+
+-- ------------------------------------------------------------------------------
+-- 7. RLS — mismo criterio del resto del proyecto (anon_all_<tabla>) mientras no haya Auth real
+-- ------------------------------------------------------------------------------
+ALTER TABLE movements       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE budgets         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE corp_allocation ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_settings    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE roles           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE work_hours      ENABLE ROW LEVEL SECURITY;
+
+DO $$
+DECLARE t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['movements', 'budgets', 'corp_allocation', 'app_settings', 'roles', 'users', 'work_hours'] LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON %I', 'anon_all_' || t, t);
+    EXECUTE format('CREATE POLICY %I ON %I FOR ALL USING (true) WITH CHECK (true)', 'anon_all_' || t, t);
+  END LOOP;
+END $$;
+
+
+-- ############################################################################
+-- ESQUEMA 20261016000001_work_hours_time_range.sql
 -- ############################################################################
 -- ==============================================================================
 -- Horas-hombre de "desde – hasta" con descansos.
@@ -49,7 +692,7 @@ ALTER TABLE work_hours ADD COLUMN IF NOT EXISTS breaks        TEXT;
 
 
 -- ############################################################################
--- MIGRACIÓN 20261017000001_investments.sql
+-- ESQUEMA 20261017000001_investments.sql
 -- ############################################################################
 -- ==============================================================================
 -- Inversiones: aportes de socios (patrimonio) y préstamos (deuda).
@@ -108,7 +751,7 @@ END $$;
 
 
 -- ############################################################################
--- MIGRACIÓN 20261018000001_labor_contracts.sql
+-- ESQUEMA 20261018000001_labor_contracts.sql
 -- ############################################################################
 -- ==============================================================================
 -- Mano de obra: contratos de colaboradores (TABLA_M.O del Excel).
@@ -156,7 +799,7 @@ END $$;
 
 
 -- ############################################################################
--- MIGRACIÓN 20261019000001_login_con_contrasena.sql
+-- ESQUEMA 20261019000001_login_con_contrasena.sql
 -- ############################################################################
 -- ==============================================================================
 -- Entrar con correo y contraseña (Supabase Auth) y cerrar la base a quien no tenga cuenta.

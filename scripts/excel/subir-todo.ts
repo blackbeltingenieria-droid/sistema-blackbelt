@@ -1,15 +1,20 @@
 // scripts/excel/subir-todo.ts — un solo archivo para pegar UNA vez en Supabase → SQL Editor.
-// Junta, en orden: guardia (3 datos a cambiar arriba) → 4 migraciones → respaldo y limpieza →
+// Junta, en orden: guardia (3 datos a cambiar arriba) → esquema inicial + 6 migraciones → respaldo y limpieza →
 // carga del Excel → primer usuario (Henry, con contraseña) → verificación (16 filas OK).
 // No se conecta a ninguna base: solo escribe texto. Lo corre la usuaria.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+/** Todo el esquema, desde el inicial, en orden. Cada archivo es seguro de repetir (IF NOT EXISTS / ON CONFLICT),
+ *  así sirve tanto para una base nueva como para una que ya tenga parte aplicada. */
 export const MIGRATIONS = [
-  '20261016000001_work_hours_time_range.sql',
-  '20261017000001_investments.sql',
-  '20261018000001_labor_contracts.sql',
-  '20261019000001_login_con_contrasena.sql',
+  'supabase/schema_completo_blackbelt.sql',
+  'supabase/migrations/20261014000001_kanban_sprints_tasks.sql',
+  'supabase/migrations/20261015000001_modelo_c_movements_budgets_roles.sql',
+  'supabase/migrations/20261016000001_work_hours_time_range.sql',
+  'supabase/migrations/20261017000001_investments.sql',
+  'supabase/migrations/20261018000001_labor_contracts.sql',
+  'supabase/migrations/20261019000001_login_con_contrasena.sql',
 ];
 
 function swap(text: string, from: string, to: string, file: string): string {
@@ -36,7 +41,7 @@ export function buildSubirTodo(root: string, parts: { clean: string; load: strin
     `--   3. Al final aparece una tabla de 16 filas: todas deben decir OK.`,
     `--   4. Borra la contraseña del editor (no guardes este texto con la contraseña).`,
     `--`,
-    `-- Hace, en orden: 4 migraciones (seguras, se pueden repetir) → copia de respaldo de los datos`,
+    `-- Hace, en orden: esquema completo + 6 migraciones (seguras, se pueden repetir) → copia de respaldo de los datos`,
     `-- actuales (tablas respaldo_20261016_*) y limpieza → carga del Excel → cuenta de Henry → verificación.`,
     `-- Si algo falla, se detiene ahí y muestra el motivo en rojo.`,
     `-- ==============================================================================`,
@@ -53,7 +58,7 @@ export function buildSubirTodo(root: string, parts: { clean: string; load: strin
     `  IF current_setting('bb.clave_henry') = 'CAMBIAR' OR length(current_setting('bb.clave_henry')) < 8 THEN`,
     `    RAISE EXCEPTION 'No se hizo nada. Pon la contraseña de Henry en la línea 3 (mínimo 8 caracteres).'; END IF;`,
     `END $$;`,
-    ...MIGRATIONS.map((m) => block(`MIGRACIÓN ${m}`, read(`supabase/migrations/${m}`))),
+    ...MIGRATIONS.map((m) => block(`ESQUEMA ${m.split('/').pop()}`, read(m))),
     block('PASO 1 · RESPALDO Y LIMPIEZA', clean),
     block('PASO 2 · CARGA DEL EXCEL', parts.load),
     block('PASO 3 · CUENTA DE HENRY (Administrador)', first),
