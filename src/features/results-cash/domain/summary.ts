@@ -18,6 +18,8 @@ export interface BusinessSummary {
   cash: number;            // dinero en caja a fin de mes
   receivable: number;      // te deben (lo que falta pagar de los proyectos, o ingresos − cobros)
   sinceStart: { income: number; spent: number; result: number }; // acumulado desde el inicio hasta este mes
+  /** Si se cobra todo lo que deben los clientes y se paga todo lo que se debe al equipo (como Hoja1 del Excel). */
+  projected: { receivable: number; laborPending: number; result: number } | null;
   payable: number;         // debes
   reasons: string[];       // por qué, en 2–4 frases
   topExpenses: CategoryBar[];
@@ -42,6 +44,8 @@ export function buildBusinessSummary(input: {
   months?: string[];
   /** Cómo se nombra el periodo anterior ("septiembre", "los 3 meses anteriores"). */
   previousLabel?: string;
+  /** Lo que falta pagar al equipo (Mano de obra). */
+  laborPending?: number;
 }): BusinessSummary {
   const { mes, results, previous, cash, movements, evolution, categoryNames, unitNames } = input;
   const t = results.totals;
@@ -79,5 +83,8 @@ export function buildBusinessSummary(input: {
     }
   }
 
-  return { verdict, result, income, spent, cash: cash.closingBalance, receivable, payable, sinceStart, reasons: reasons.slice(0, 4), topExpenses, trend: evolution };
+  const projected = input.projectsReceivable !== undefined || input.laborPending
+    ? { receivable, laborPending: input.laborPending ?? 0, result: r2(sinceStart.result + receivable - (input.laborPending ?? 0)) }
+    : null;
+  return { verdict, result, income, spent, cash: cash.closingBalance, receivable, payable, sinceStart, projected, reasons: reasons.slice(0, 4), topExpenses, trend: evolution };
 }
