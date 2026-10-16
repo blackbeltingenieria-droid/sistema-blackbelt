@@ -44,5 +44,11 @@ CREATE TABLE IF NOT EXISTS investments (
 CREATE INDEX IF NOT EXISTS idx_investments_kind ON investments (kind);
 
 ALTER TABLE investments ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS anon_all_investments ON investments;
-CREATE POLICY anon_all_investments ON investments FOR ALL USING (true) WITH CHECK (true);
+-- Política abierta solo si aún no se aplicó 20261019000001 (login con contraseña), que la reemplaza.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'investments' AND policyname = 'app_users_all') THEN
+    DROP POLICY IF EXISTS anon_all_investments ON investments;
+    CREATE POLICY anon_all_investments ON investments FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+END $$;

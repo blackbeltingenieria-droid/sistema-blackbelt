@@ -33,5 +33,11 @@ CREATE INDEX IF NOT EXISTS idx_labor_contracts_specialist ON labor_contracts (sp
 CREATE INDEX IF NOT EXISTS idx_labor_contracts_project ON labor_contracts (project_id);
 
 ALTER TABLE labor_contracts ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS anon_all_labor_contracts ON labor_contracts;
-CREATE POLICY anon_all_labor_contracts ON labor_contracts FOR ALL USING (true) WITH CHECK (true);
+-- Política abierta solo si aún no se aplicó 20261019000001 (login con contraseña), que la reemplaza.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'labor_contracts' AND policyname = 'app_users_all') THEN
+    DROP POLICY IF EXISTS anon_all_labor_contracts ON labor_contracts;
+    CREATE POLICY anon_all_labor_contracts ON labor_contracts FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+END $$;
