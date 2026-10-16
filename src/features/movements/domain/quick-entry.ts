@@ -37,7 +37,7 @@ export interface QuickCatalogs {
   projects: ProjectRow[];
 }
 
-export const PAYMENT_METHODS = ['YAPE', 'PLIN', 'EFECTIVO', 'TRANSFERENCIA', 'TARJETA'] as const;
+export const PAYMENT_METHODS = ['YAPE', 'PLIN', 'BBVA', 'BCP', 'EFECTIVO', 'TRANSFERENCIA', 'TARJETA'] as const;
 
 // ─── Sugerencia de categoría por palabras del concepto ───────────────────────
 const KEYWORDS: [string, string[]][] = [
@@ -220,6 +220,8 @@ export const SIMPLE_TYPE: Record<RecordType, { label: string; sign: 1 | -1 }> = 
   PAGO:               { label: 'Pago', sign: -1 },
   RETIRO_SOCIO:       { label: 'Retiro de socio', sign: -1 },
   COMPRA_ACTIVO:      { label: 'Compra de equipo', sign: -1 },
+  PRESTAMO_RECIBIDO:  { label: 'Préstamo recibido', sign: 1 },
+  PAGO_PRESTAMO:      { label: 'Pago de préstamo', sign: -1 },
 };
 
 /** Explicación en palabras simples de por qué un movimiento no cuenta todavía. */
