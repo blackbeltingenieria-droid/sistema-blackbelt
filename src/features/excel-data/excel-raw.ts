@@ -1,15 +1,15 @@
 // features/excel-data/excel-raw.ts
 // Filas tal cual del Excel «CUADRO DE COSTOS - PRIMER MODELO» (hojas TABLA_*). NO editar a mano:
-// es la fuente real. Correcciones aplicadas (decisión de la usuaria, 16/10/2026): fechas 15/10/2025 → 15/10/2026
-// en TABLA_INGRESOS filas 12 y 13; texto "15/010/2026" → 2026-10-15; "09/092026" → 2026-09-09.
+// es la fuente real. Las fechas 15/10/2025 de TABLA_INGRESOS filas 12 y 13 son ADELANTOS y se dejan tal cual.
+// Solo se corrigen textos mal escritos: "15/010/2026" → 2026-10-15; "09/092026" → 2026-09-09.
 
 export const EXCEL_INGRESOS = [
   { row: 8, client: "WILMER SANCHEZ MAMANI", doc: "45410158", product: "DESARROLLO DE TESIS", group: "DESARROLLO DE TESIS COMPLETA", spec: "Pago de Tesis primera entrega", date: "2026-09-24", amount: 800, method: "YAPE" },
   { row: 9, client: "CASTRO ESTFHANY DIAZ", doc: "60555252", product: "TESINA", group: "ORDENAR A FORMATO APA Y LEVANTAR OBSERVACIONES", spec: "Pago por culminacion", date: "2026-10-07", amount: 90, method: "YAPE" },
   { row: 10, client: "ANTHENOL BENITO FARROMEQUE MUTTO", doc: "44850179", product: "PROYECTO DE INVESTIGACION", group: "REALIZAR LA PARTE DE INTRODUCCION", spec: "Pago por la elaboracion de la Introduccion", date: "2026-10-10", amount: 400, method: "YAPE" },
   { row: 11, client: "ERIKA MERINO ROÑA", doc: null, product: "PROYECTO DE INVESTIGACION", group: "REALIZAR LA PARTE DE INTRODUCCION", spec: "Pago por la elaboracion de la Introduccion", date: "2026-10-10", amount: 400, method: "YAPE" },
-  { row: 12, client: "WILMER SANCHEZ MAMANI", doc: "45410158", product: "DESARROLLO DE TESIS", group: "DESARROLLO DE TESIS COMPLETA", spec: "Pago de Tesis primera entrega", date: "2026-10-15", amount: 1500, method: "YAPE" },
-  { row: 13, client: "TANIA LUCIA AROS RENGIFO", doc: "41705907", product: "DESARROLLO DE TESIS", group: "DESARROLLO DE TESIS COMPLETA", spec: "Pago de Tesis primera entrega", date: "2026-10-15", amount: 2050, method: "YAPE" },
+  { row: 12, client: "WILMER SANCHEZ MAMANI", doc: "45410158", product: "DESARROLLO DE TESIS", group: "DESARROLLO DE TESIS COMPLETA", spec: "Pago de Tesis primera entrega", date: "2025-10-15", amount: 1500, method: "YAPE" },
+  { row: 13, client: "TANIA LUCIA AROS RENGIFO", doc: "41705907", product: "DESARROLLO DE TESIS", group: "DESARROLLO DE TESIS COMPLETA", spec: "Pago de Tesis primera entrega", date: "2025-10-15", amount: 2050, method: "YAPE" },
 ] as const;
 
 export const EXCEL_EGRESOS = [
@@ -66,13 +66,13 @@ export const EXCEL_CLIENTES = [
 ] as const;
 
 export const EXCEL_MANO_OBRA = [
-  { row: 11, name: "EDDY RENATO VIVANCO NÚÑEZ", doc: "74994929", unit: "INVESTIGACION Y DESARROLLO", service: "ASESORAMIENTO EN ING. MECÁNICA", spec: "DESARROLLARÁ EL MODELAMIENTO DE LA PLATAFORMA DEL MOLINO DE BOLAS", client: "WILMER SANCHEZ MAMANI", term: "POR PROYECTO", start: "2026-09-18", end: "2026-10-18", required: 1500, paid: 1500, pending: 0 },
-  { row: 12, name: "JHIMMY CORTÉZ RUIZ", doc: "40098380", unit: "INVESTIGACION Y DESARROLLO", service: "ASESORAMIENTO DE TESIS EN GENERAL", spec: "DESARROLLARA PARTE DE LA INVESTIGACION DE TANIA AROS", client: "TANIA AROS RENGIFO", term: "POR PROYECTO", start: "2026-10-03", end: "2026-10-13", required: 1200, paid: 1200, pending: 0 },
-  { row: 13, name: "MANUEL ENRIQUE PANDURO RENGIFO", doc: "40443237", unit: "INVESTIGACION Y DESARROLLO", service: "ASESORAMIENTO DE TESIS DE DERECHO", spec: "ASESORAR LA INVESTIGACION DE MARISOL FLORES", client: "MARISOL FLORES", term: "POR PROYECTO", start: "2026-10-03", end: "2026-10-04", required: 40, paid: 40, pending: 0 },
-  { row: 14, name: "TEDDY GARCIA MURRIETA", doc: "10250610", unit: "INVESTIGACION Y DESARROLLO", service: "ASESORAMIENTO DE TESIS EN GENERAL", spec: "ASESORAR LA INVESTIGACION DE WILMER", client: "WILMER SANCHEZ MAMANI", term: "POR PROYECTO", start: "2026-09-18", end: "2026-10-18", required: 280, paid: 30, pending: 250 },
-  { row: 15, name: "HENRY TORRES RIVERA", doc: "73972788", unit: "INVESTIGACION Y DESARROLLO", service: "ASESORAMIENTO DE TESIS EN GENERAL", spec: "ASESORAR LA INVESTIGACION DE WILMER", client: "WILMER SANCHEZ MAMANI", term: "POR PROYECTO", start: "2026-09-18", end: "2026-10-18", required: 280, paid: 180, pending: 100 },
-  { row: 16, name: "ALANIS PARDAVÉ", doc: "61467305", unit: "MARKETING DIGITAL", service: "MARKETEO DE REDES SOCIALES", spec: "ACTIVAR Y MEJORAR LAS REDES SOCIALES, PUBLICITAR Y REALIZAR DISEÑOS", client: "BLACKBELT GROUP", term: "MENSUAL", start: "2026-10-04", end: "2026-10-05", required: 700, paid: 350, pending: 350 },
-  { row: 17, name: "JOHANN IMANOL HERRERA RAMOS", doc: "73515597", unit: "GENERAL", service: "PRACTICANTE", spec: "MEJORAR EL SISTEMA DE BLACKBELT, ASI TAMBIEN COMO EL DESARROLLO DE ALGUNAS ACTIVIDADES", client: "BLACKBELT GROUP", term: "MENSUAL", start: "2026-10-08", end: "2026-11-08", required: 700, paid: 0, pending: 700 },
+  { row: 11, name: "EDDY RENATO VIVANCO NÚÑEZ", doc: "74994929", area: "INVESTIGACION Y DESARROLLO", unit: "INVESTIGACION Y DESARROLLO", service: "ASESORAMIENTO EN ING. MECÁNICA", spec: "DESARROLLARÁ EL MODELAMIENTO DE LA PLATAFORMA DEL MOLINO DE BOLAS", client: "WILMER SANCHEZ MAMANI", term: "POR PROYECTO", start: "2026-09-18", end: "2026-10-18", required: 1500, paid: 1500, pending: 0 },
+  { row: 12, name: "JHIMMY CORTÉZ RUIZ", doc: "40098380", area: "INVESTIGACION Y DESARROLLO", unit: "INVESTIGACION Y DESARROLLO", service: "ASESORAMIENTO DE TESIS EN GENERAL", spec: "DESARROLLARA PARTE DE LA INVESTIGACION DE TANIA AROS", client: "TANIA AROS RENGIFO", term: "POR PROYECTO", start: "2026-10-03", end: "2026-10-13", required: 1200, paid: 1200, pending: 0 },
+  { row: 13, name: "MANUEL ENRIQUE PANDURO RENGIFO", doc: "40443237", area: "INVESTIGACION Y DESARROLLO", unit: "INVESTIGACION Y DESARROLLO", service: "ASESORAMIENTO DE TESIS DE DERECHO", spec: "ASESORAR LA INVESTIGACION DE MARISOL FLORES", client: "MARISOL FLORES", term: "POR PROYECTO", start: "2026-10-03", end: "2026-10-04", required: 40, paid: 40, pending: 0 },
+  { row: 14, name: "TEDDY GARCIA MURRIETA", doc: "10250610", area: "INVESTIGACION Y DESARROLLO", unit: "INVESTIGACION Y DESARROLLO", service: "ASESORAMIENTO DE TESIS EN GENERAL", spec: "ASESORAR LA INVESTIGACION DE WILMER", client: "WILMER SANCHEZ MAMANI", term: "POR PROYECTO", start: "2026-09-18", end: "2026-10-18", required: 280, paid: 30, pending: 250 },
+  { row: 15, name: "HENRY TORRES RIVERA", doc: "73972788", area: "INVESTIGACION Y DESARROLLO", unit: "INVESTIGACION Y DESARROLLO", service: "ASESORAMIENTO DE TESIS EN GENERAL", spec: "ASESORAR LA INVESTIGACION DE WILMER", client: "WILMER SANCHEZ MAMANI", term: "POR PROYECTO", start: "2026-09-18", end: "2026-10-18", required: 280, paid: 180, pending: 100 },
+  { row: 16, name: "ALANIS PARDAVÉ", doc: "61467305", area: "INVESTIGACION Y DESARROLLO", unit: "MARKETING DIGITAL", service: "MARKETEO DE REDES SOCIALES", spec: "ACTIVAR Y MEJORAR LAS REDES SOCIALES, PUBLICITAR Y REALIZAR DISEÑOS", client: "BLACKBELT GROUP", term: "MENSUAL", start: "2026-10-04", end: "2026-10-05", required: 700, paid: 350, pending: 350 },
+  { row: 17, name: "JOHANN IMANOL HERRERA RAMOS", doc: "73515597", area: "TECNOLOGIA Y DESARROLLO", unit: "GENERAL", service: "PRACTICANTE", spec: "MEJORAR EL SISTEMA DE BLACKBELT, ASI TAMBIEN COMO EL DESARROLLO DE ALGUNAS ACTIVIDADES", client: "BLACKBELT GROUP", term: "MENSUAL", start: "2026-10-08", end: "2026-11-08", required: 700, paid: 0, pending: 700 },
 ] as const;
 
 /** Totales del Excel con los que la página debe cuadrar. */

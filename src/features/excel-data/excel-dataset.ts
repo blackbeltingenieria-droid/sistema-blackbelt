@@ -22,6 +22,11 @@ export interface XlsMovement {
   unitCode: string; areaCode: string; categoryCode: string; cls: XlsClass; projectId: number | null;
   counterparty: string | null; detail: string; method: string; responsible: string | null; notes: string | null;
 }
+export interface XlsLaborContract {
+  id: number; code: string; specialistId: number; name: string; doc: string; unitCode: string; areaCode: string;
+  projectId: number | null; clientLabel: string; service: string; description: string; type: 'POR_PROYECTO' | 'MENSUAL';
+  start: string; end: string; agreed: number; excelPaid: number; excelPending: number; row: number;
+}
 export interface XlsInvestment {
   id: number; code: string; kind: 'patrimonio'; name: string; doc: string; amount: number; date: string; method: string; description: string;
 }
@@ -76,18 +81,50 @@ export const XLS_SPECIALISTS: XlsSpecialist[] = [
   })),
 ];
 
+// ─── Contratos de mano de obra (TABLA_M.O) ───────────────────────────────────
+const title = (s: string) => s.split(' ').map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
+const specialistIdOf = (name: string) => (XLS_SPECIALISTS.find((s) => norm(s.name) === norm(name)) as XlsSpecialist).id;
+
+/** Proyecto del cliente que figura en M.O (MARISOL FLORES no es cliente; BLACKBELT GROUP = la empresa). */
+function projectOfLaborClient(client: string): number | null {
+  const n = norm(client);
+  const c = XLS_CLIENTS.find((x) => norm(x.name).split(' ').filter((w) => w.length > 2).filter((w) => n.includes(w)).length >= 2);
+  return c ? projectOfClient(c.id).id : null;
+}
+
+export const XLS_LABOR_CONTRACTS: XlsLaborContract[] = EXCEL_MANO_OBRA.map((m, i) => {
+  const isCompany = m.unit === 'GENERAL' || m.unit === 'MARKETING DIGITAL'; // se pagan como gasto de toda la empresa
+  return {
+    id: i + 1,
+    code: `CMO-2026-${String(i + 1).padStart(3, '0')}`,
+    specialistId: specialistIdOf(norm(m.name) === 'HENRY TORRES RIVERA' ? 'Henry Torres Rivera' : title(m.name)),
+    name: m.name, doc: m.doc,
+    unitCode: isCompany ? 'CORP' : 'UN03',
+    areaCode: m.unit === 'MARKETING DIGITAL' ? 'MKT' : isCompany ? 'ADM' : 'U03-MET',
+    projectId: projectOfLaborClient(m.client),
+    clientLabel: m.client,
+    service: m.service.trim(),
+    description: m.spec,
+    type: m.term === 'MENSUAL' ? 'MENSUAL' : 'POR_PROYECTO',
+    start: m.start, end: m.end, agreed: m.required, excelPaid: m.paid, excelPending: m.pending, row: m.row,
+  };
+});
+
+export const laborNote = (code: string) => `Mano de obra ${code}`;
+
 // ─── Movimientos ─────────────────────────────────────────────────────────────
-interface Event { date: string; order: number; build: (code: (n: number) => string, nextId: () => number) => XlsMovement[] }
+/** `code(fecha)` da el siguiente MOV-AAAA-NNNN del año de esa fecha (igual que la app: numeración por año). */
+interface Event { date: string; order: number; build: (code: (date: string) => string, nextId: () => number) => XlsMovement[] }
 const events: Event[] = [];
 
 /** Especialista mencionado en el texto del egreso (Excel lo escribe entre paréntesis o al final). */
 function specialistIn(spec: string): string | null {
   const s = norm(spec);
+  if (s.includes('TEDDY')) return 'TEDDY GARCIA MURRIETA';      // antes que EDDY: "TEDDY" contiene "EDDY"
   if (s.includes('EDDY')) return 'EDDY RENATO VIVANCO NÚÑEZ';
   if (s.includes('JHIMMY')) return 'JHIMMY CORTÉZ RUIZ';
   if (s.includes('ALANIS')) return 'ALANIS PARDAVÉ';
   if (s.includes('(HENRY)')) return 'HENRY TORRES RIVERA';
-  if (s.includes('TEDDY')) return 'TEDDY GARCIA MURRIETA';
   if (s.includes('ASESORAMIENTO DE INVESTIGACION')) return 'MANUEL ENRIQUE PANDURO RENGIFO';
   return null;
 }
@@ -124,15 +161,33 @@ for (const [i, r] of EXCEL_INGRESOS.entries()) {
   events.push({
     date: r.date, order: 100 + i,
     build: (code, nextId) => {
-      const mainId = nextId(); const mainCode = code(mainId);
+      const mainId = nextId(); const mainCode = code(r.date);
       const base = { date: r.date, amount: r.amount, unitCode: 'UN03', projectId: project.id, counterparty: client.name, detail: r.spec, method: r.method, responsible: null };
-      const cobroId = nextId();
+      const cobroId = nextId(); const cobroCode = code(r.date);
       return [
         { ...base, id: mainId, code: mainCode, type: 'INGRESO_RECONOCIDO', areaCode: 'U03-MET', categoryCode: 'OTR', cls: 'NO_APLICA', notes: `Excel TABLA_INGRESOS fila ${r.row}: ${r.product} – ${r.group}` },
-        { ...base, id: cobroId, code: code(cobroId), type: 'COBRO', areaCode: 'FIN', categoryCode: 'CXC', cls: 'NO_APLICA', notes: `Contrapartida de ${mainCode}` },
+        { ...base, id: cobroId, code: cobroCode, type: 'COBRO', areaCode: 'FIN', categoryCode: 'CXC', cls: 'NO_APLICA', notes: `Contrapartida de ${mainCode}` },
       ] as XlsMovement[];
     },
   });
+}
+
+/** Egresos de mano de obra enlazados a su contrato, en orden de fecha, mientras no pasen lo acordado.
+ *  (Fila 43: 12.13 a Eddy después de completar S/ 1,500 → no se enlaza; es un costo extra, posible comisión.) */
+const LABOR_LINK = new Map<number, string>();
+{
+  const used = new Map<string, number>();
+  const ordered = [...EXCEL_EGRESOS].sort((a, b) => a.date.localeCompare(b.date) || a.row - b.row);
+  for (const r of ordered) {
+    if (categoryFor(r.group, r.product, r.spec) !== 'MO') continue;
+    const who = specialistIn(r.spec);
+    const contract = who ? XLS_LABOR_CONTRACTS.find((c) => norm(c.name) === norm(who)) : undefined;
+    if (!contract) continue;
+    const total = r2((used.get(contract.code) ?? 0) + r.amount);
+    if (total > contract.agreed + 0.001) continue;
+    used.set(contract.code, total);
+    LABOR_LINK.set(r.row, contract.code);
+  }
 }
 
 for (const [i, r] of EXCEL_EGRESOS.entries()) {
@@ -144,13 +199,14 @@ for (const [i, r] of EXCEL_EGRESOS.entries()) {
   events.push({
     date: r.date, order: 200 + i,
     build: (code, nextId) => {
-      const mainId = nextId(); const mainCode = code(mainId);
+      const mainId = nextId(); const mainCode = code(r.date);
       const base = { date: r.date, amount: r.amount, unitCode: isCorp ? 'CORP' : 'UN03', projectId, counterparty: specialist ?? r.product, detail, method: r.method, responsible: r.payer };
-      const payId = nextId();
+      const payId = nextId(); const payCode = code(r.date);
       return [
         { ...base, id: mainId, code: mainCode, type: 'COSTO_RECONOCIDO', areaCode: AREA[r.area] ?? 'ADM', categoryCode: category,
-          cls: isCorp ? 'COMPARTIDO' : projectId ? 'DIRECTO' : 'ATRIBUIBLE', notes: `Excel TABLA_EGRESOS fila ${r.row}: ${r.spec}` },
-        { ...base, id: payId, code: code(payId), type: 'PAGO', areaCode: 'FIN', categoryCode: 'CXP', cls: 'NO_APLICA', notes: `Contrapartida de ${mainCode}` },
+          cls: isCorp ? 'COMPARTIDO' : projectId ? 'DIRECTO' : 'ATRIBUIBLE',
+          notes: `Excel TABLA_EGRESOS fila ${r.row}: ${r.spec}${LABOR_LINK.has(r.row) ? ` · ${laborNote(LABOR_LINK.get(r.row) as string)}` : ''}` },
+        { ...base, id: payId, code: payCode, type: 'PAGO', areaCode: 'FIN', categoryCode: 'CXP', cls: 'NO_APLICA', notes: `Contrapartida de ${mainCode}` },
       ] as XlsMovement[];
     },
   });
@@ -167,7 +223,7 @@ for (const [i, inv] of XLS_INVESTMENTS.entries()) {
     build: (code, nextId) => {
       const id = nextId();
       return [{
-        id, code: code(id), date: inv.date, type: 'APORTE_SOCIO', amount: inv.amount, unitCode: 'CORP', areaCode: 'FIN', categoryCode: 'SOC',
+        id, code: code(inv.date), date: inv.date, type: 'APORTE_SOCIO', amount: inv.amount, unitCode: 'CORP', areaCode: 'FIN', categoryCode: 'SOC',
         cls: 'NO_APLICA', projectId: null, counterparty: inv.name, detail: inv.description, method: inv.method, responsible: null,
         notes: `Inversión ${inv.code} · Excel TABLA_INVERSIONES fila ${EXCEL_INVERSIONES[i].row}`,
       }];
@@ -176,9 +232,16 @@ for (const [i, inv] of XLS_INVESTMENTS.entries()) {
 }
 
 let seq = 0;
+const perYear = new Map<string, number>();
+const codeFor = (date: string) => {
+  const y = date.slice(0, 4);
+  const n = (perYear.get(y) ?? 0) + 1;
+  perYear.set(y, n);
+  return `MOV-${y}-${String(n).padStart(4, '0')}`;
+};
 export const XLS_MOVEMENTS: XlsMovement[] = events
   .sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order)
-  .flatMap((e) => e.build((n) => `MOV-2026-${String(n).padStart(4, '0')}`, () => ++seq));
+  .flatMap((e) => e.build(codeFor, () => ++seq));
 
 export const XLS_PAYMENTS: XlsPayment[] = EXCEL_INGRESOS
   .map((r) => ({ r, projectId: projectOfClient(clientIdFor(r.client, r.doc)).id }))
