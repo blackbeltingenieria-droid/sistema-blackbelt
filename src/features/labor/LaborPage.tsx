@@ -18,7 +18,7 @@ import { LaborContractModal } from './components/LaborContractModal';
 import { LABOR_STATUS_TEXT, buildLaborReport, type LaborRow, type LaborStatus } from './domain/labor';
 import { useLabor } from './hooks/useLabor';
 import {
-  createLaborContract, deleteLaborContract, registerLaborPayment, renewMonthly, updateLaborContract,
+  createLaborContract, deleteLaborContract, registerLaborPayment, renewMonthly, undoLaborPayment, updateLaborContract,
 } from './services/labor-service';
 
 const btn = 'px-3 py-1.5 min-h-[36px] border border-line rounded-card bb-body text-xs hover:bg-canvas whitespace-nowrap';
@@ -48,6 +48,9 @@ export function LaborPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [trace, setTrace] = useState<{ title: string; ids: number[] } | null>(null);
+  // Último pago registrado: se puede deshacer al instante si fue por error.
+  const [lastPayment, setLastPayment] = useState<{ id: number; text: string } | null>(null);
+  const [confirmUndo, setConfirmUndo] = useState<number | null>(null);
 
   const today = todayIso();
   const report = useMemo(() => buildLaborReport(contracts, movements, today), [contracts, movements, today]);
@@ -60,7 +63,7 @@ export function LaborPage() {
     && (!q || r.contract.worker_name.includes(q) || r.contract.service.includes(q) || (r.contract.client_label ?? '').toUpperCase().includes(q)));
 
   async function run(action: () => Promise<unknown>, done: string) {
-    setActionError(null); setMsg(null);
+    setActionError(null); setMsg(null); setLastPayment(null);
     try {
       await action();
       await refetch();
@@ -94,6 +97,15 @@ export function LaborPage() {
         {error && <ErrorBanner message={error} onRetry={() => void refetch()} />}
         {actionError && <ErrorBanner message={actionError} onClose={() => setActionError(null)} />}
         {msg && <p role="status" className="bb-body text-sm text-ink bg-paper border border-line rounded-card px-4 py-2 mb-3">{msg}</p>}
+        {lastPayment && (
+          <div className="flex flex-wrap items-center gap-2 bb-body text-sm text-ink bg-paper border border-gold rounded-card px-4 py-2 mb-3" data-testid="labor-last-payment">
+            <span>{lastPayment.text}</span>
+            <button type="button" className="underline font-semibold" data-testid="labor-undo-last"
+              onClick={() => { const id = lastPayment.id; void run(() => undoLaborPayment(id), 'Pago deshecho: se borró el egreso y el dinero volvió a caja.'); }}>
+              Deshacer
+            </button>
+          </div>
+        )}
         {loading && <p className="bb-body text-ink-soft text-center py-12 text-sm">Cargando…</p>}
 
         {!loading && (
@@ -157,14 +169,25 @@ export function LaborPage() {
                       </p>
                       {r.owedRegistered > 0 && <p className="bb-body text-xs text-rust mt-1">Hay {formatPen(r.owedRegistered)} anotado como "lo debo" sin pagar.</p>}
 
-                      {r.payments.length > 0 && (
+                      {r.payments.length + r.unpaid.length > 0 && (
                         <details className="mt-2">
-                          <summary className="bb-body text-xs text-ink cursor-pointer">Pagos hechos ({r.payments.length})</summary>
-                          <ul className="mt-1 space-y-0.5" data-testid="labor-payments">
-                            {r.payments.map((p) => (
-                              <li key={p.id} className="bb-body text-xs text-ink-soft flex justify-between gap-2">
-                                <span>{formatDateShort(p.date)}{p.method ? ` · ${p.method}` : ''} · {p.code}</span>
-                                <span className="bb-mono text-ink">{formatPen(p.amount)}</span>
+                          <summary className="bb-body text-xs text-ink cursor-pointer">Pagos hechos ({r.payments.length + r.unpaid.length})</summary>
+                          <ul className="mt-1 space-y-1" data-testid="labor-payments">
+                            {[...r.payments, ...r.unpaid].map((p) => (
+                              <li key={p.id} className="bb-body text-xs text-ink-soft flex flex-wrap items-center justify-between gap-x-2">
+                                <span>{formatDateShort(p.date)}{p.method ? ` · ${p.method}` : ''} · {p.code}{r.unpaid.includes(p) ? ' · por pagar' : ''}</span>
+                                <span className="flex items-center gap-2">
+                                  <span className="bb-mono text-ink">{formatPen(p.amount)}</span>
+                                  {confirmUndo === p.id ? (
+                                    <>
+                                      <button type="button" className="px-2 py-0.5 bg-rust text-paper rounded-card"
+                                        onClick={() => { setConfirmUndo(null); void run(() => undoLaborPayment(p.id), `Se deshizo el pago ${p.code}: el dinero volvió a caja.`); }}>Sí, deshacer</button>
+                                      <button type="button" className="underline" onClick={() => setConfirmUndo(null)}>No</button>
+                                    </>
+                                  ) : (
+                                    <button type="button" className="underline text-rust" data-testid="labor-undo" onClick={() => setConfirmUndo(p.id)}>Deshacer</button>
+                                  )}
+                                </span>
                               </li>
                             ))}
                           </ul>
@@ -197,8 +220,15 @@ export function LaborPage() {
 
                       {payFor === c.id && (
                         <LaborPayForm row={r} lastMethod={r.payments.at(-1)?.method ?? null} onCancel={() => setPayFor(null)}
-                          onSave={(p) => run(async () => { await registerLaborPayment(c, p); setPayFor(null); },
-                            p.settled ? `Pago registrado a ${c.worker_name}: ya cuenta en caja.` : `Anotado como deuda con ${c.worker_name}.`)} />
+                          onSave={async (p) => {
+                            let saved: { id: number } | null = null;
+                            await run(async () => { saved = await registerLaborPayment(c, p); setPayFor(null); }, '');
+                            const id = (saved as { id: number } | null)?.id;
+                            if (id) {
+                              setMsg(null);
+                              setLastPayment({ id, text: p.settled ? `Pago de ${formatPen(p.amount)} registrado a ${c.worker_name}: ya cuenta en caja.` : `Anotado: debes ${formatPen(p.amount)} a ${c.worker_name}.` });
+                            }
+                          }} />
                       )}
                     </div>
                   </Card>

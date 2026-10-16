@@ -5,13 +5,14 @@
 
 import { isSupabaseConfigured, supabase } from '../../../lib/supabase';
 import { addMonths } from '../../../lib/autofill';
-import type { DbLaborContract, LaborContractType } from '../../../types/database';
+import type { DbLaborContract, DbMovement, LaborContractType } from '../../../types/database';
 import { getAreas, getBusinessUnits, getCostCategories } from '../../catalogs/services/catalog-service';
 import { getProjectRows } from '../../clients-projects/services/project-service';
 import { demoData } from '../../demo/demo-data';
 import { EXCEL_DB_LABOR_CONTRACTS } from '../../excel-data/excel-local';
 import { CORP_CODE } from '../../movements/domain/movement-rules';
-import { createQuickMovement, getMovements, updateMovement } from '../../movements/services/movement-service';
+import { pairNote } from '../../movements/domain/quick-entry';
+import { createQuickMovement, deleteQuickEvent, getMovements, updateMovement } from '../../movements/services/movement-service';
 import { laborCodeIn, nextLaborCode, withLaborTag } from '../domain/labor';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- patrón del proyecto
@@ -123,12 +124,12 @@ export interface LaborPaymentInput { date: string; amount: number; paymentMethod
 const titleCase = (s: string) => s.toLowerCase().replace(/(^|\s)\S/g, (x) => x.toUpperCase());
 
 /** Registra un pago al colaborador: egreso de "Especialistas y personal" (+ su pago) enlazado al contrato. */
-export async function registerLaborPayment(c: DbLaborContract, p: LaborPaymentInput): Promise<void> {
+export async function registerLaborPayment(c: DbLaborContract, p: LaborPaymentInput): Promise<DbMovement> {
   if (!(p.amount > 0)) throw new Error('Escribe cuánto le pagaste.');
   if (!p.date) throw new Error('Pon la fecha del pago.');
   const [units, areas, categories, projects] = await Promise.all([getBusinessUnits(), getAreas(), getCostCategories(), getProjectRows()]);
   const unit = units.find((u) => u.id === c.business_unit_id);
-  await createQuickMovement({
+  return createQuickMovement({
     kind: 'EGRESO',
     date: p.date,
     amount: Math.round(p.amount * 100) / 100,
@@ -141,6 +142,16 @@ export async function registerLaborPayment(c: DbLaborContract, p: LaborPaymentIn
     categoryId: categories.find((x) => x.code === 'MO')?.id ?? null,
     notes: withLaborTag(null, c.code),
   }, { units, areas, categories, projects });
+}
+
+/** Deshacer un pago a un colaborador (p. ej. si se registró por error): borra el egreso y su pago.
+ *  El contrato vuelve a mostrar ese monto como "falta pagar" y la caja recupera el dinero. */
+export async function undoLaborPayment(movementId: number): Promise<void> {
+  const movs = await getMovements();
+  const main = movs.find((m) => m.id === movementId);
+  if (!main || !laborCodeIn(main.notes)) throw new Error('No se encontró ese pago.');
+  const pair = movs.find((m) => m.notes === pairNote(main.movement_code)) ?? null;
+  await deleteQuickEvent(main, pair);
 }
 
 /** Contrato mensual: crea el del mes siguiente con el mismo monto (fechas corridas un mes). */
