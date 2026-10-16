@@ -5,6 +5,8 @@
 import { monthLabel } from '../../../lib/format';
 import type { EnrichedMovement } from '../../movements/types';
 import { pendingBalances } from '../../movements/domain/quick-entry';
+import { isEligible } from '../../movements/domain/movement-rules';
+import { RECORD_TYPE } from '../../../types/database';
 import type { CashReport, ResultsReport } from './calculations';
 import { expensesByCategory, type CategoryBar, type MonthlyPoint } from './presentation';
 
@@ -14,7 +16,8 @@ export interface BusinessSummary {
   income: number;          // lo que vendiste
   spent: number;           // todo lo que gastaste (directos + atribuibles + gasto de toda la empresa)
   cash: number;            // dinero en caja a fin de mes
-  receivable: number;      // te deben
+  receivable: number;      // te deben (lo que falta pagar de los proyectos, o ingresos − cobros)
+  sinceStart: { income: number; spent: number; result: number }; // acumulado desde el inicio hasta este mes
   payable: number;         // debes
   reasons: string[];       // por qué, en 2–4 frases
   topExpenses: CategoryBar[];
@@ -33,13 +36,22 @@ export function buildBusinessSummary(input: {
   evolution: MonthlyPoint[];
   categoryNames: Map<number, string>;
   unitNames: Map<string, string>;
+  /** Lo que falta pagar de los proyectos (Clientes y Proyectos). Si se da, es el "Te deben". */
+  projectsReceivable?: number;
 }): BusinessSummary {
   const { mes, results, previous, cash, movements, evolution, categoryNames, unitNames } = input;
   const t = results.totals;
   const income = t.income;
   const result = t.finalResult;
   const spent = r2(income - result);
-  const { receivable, payable } = pendingBalances(movements, mes);
+  const balances = pendingBalances(movements, mes);
+  const receivable = input.projectsReceivable ?? balances.receivable;
+  const payable = balances.payable;
+  const upTo = movements.filter((m) => isEligible(m) && m.mes <= mes);
+  const sumType = (t: string) => r2(upTo.filter((m) => m.record_type === t).reduce((a, m) => a + m.amount, 0));
+  const startIncome = sumType(RECORD_TYPE.INGRESO_RECONOCIDO);
+  const startSpent = sumType(RECORD_TYPE.COSTO_RECONOCIDO);
+  const sinceStart = { income: startIncome, spent: startSpent, result: r2(startIncome - startSpent) };
   const topExpenses = expensesByCategory(movements, mes, categoryNames, 5);
   const verdict = income === 0 && spent === 0 ? 'sin-datos' : result >= 0 ? 'gana' : 'pierde';
 
@@ -63,5 +75,5 @@ export function buildBusinessSummary(input: {
     }
   }
 
-  return { verdict, result, income, spent, cash: cash.closingBalance, receivable, payable, reasons: reasons.slice(0, 4), topExpenses, trend: evolution };
+  return { verdict, result, income, spent, cash: cash.closingBalance, receivable, payable, sinceStart, reasons: reasons.slice(0, 4), topExpenses, trend: evolution };
 }

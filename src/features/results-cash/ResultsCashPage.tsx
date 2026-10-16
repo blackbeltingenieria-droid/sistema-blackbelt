@@ -107,6 +107,7 @@ export function ResultsCashPage() {
                 summary={buildBusinessSummary({
                   mes: month, results: r, previous: report.previous, cash: report.cash, movements: report.movements,
                   evolution: report.evolution,
+                  projectsReceivable: report.projectsReceivable,
                   categoryNames: new Map(categories.map((c) => [c.id, CATEGORY_SHORT[c.code] ?? c.name])),
                   unitNames: new Map(units.map((u) => [u.code, u.name])),
                 })}

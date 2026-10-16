@@ -128,11 +128,11 @@ export function cashEvolution(movements: EnrichedMovement[], opening: number, mo
     const c: CashReport = computeCash(movements, mes, opening);
     return {
       mes,
-      inflow: round2(c.month.cobros.amount + c.month.aportes.amount),
-      outflow: round2(c.month.pagos.amount + c.month.retiros.amount),
+      inflow: round2(c.month.cobros.amount + c.month.aportes.amount + c.month.prestamos.amount),
+      outflow: round2(c.month.pagos.amount + c.month.retiros.amount + c.month.pagosPrestamo.amount),
       balance: c.closingBalance,
-      inflowIds: [...c.month.cobros.ids, ...c.month.aportes.ids],
-      outflowIds: [...c.month.pagos.ids, ...c.month.retiros.ids],
+      inflowIds: [...c.month.cobros.ids, ...c.month.aportes.ids, ...c.month.prestamos.ids],
+      outflowIds: [...c.month.pagos.ids, ...c.month.retiros.ids, ...c.month.pagosPrestamo.ids],
     };
   });
 }

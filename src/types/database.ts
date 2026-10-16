@@ -229,6 +229,9 @@ export const RECORD_TYPE = {
   APORTE_SOCIO:       'APORTE_SOCIO',
   RETIRO_SOCIO:       'RETIRO_SOCIO',
   COMPRA_ACTIVO:      'COMPRA_ACTIVO',
+  // Migración 20261017000001 (inversiones con deuda): mueven caja, no son ingreso ni gasto.
+  PRESTAMO_RECIBIDO:  'PRESTAMO_RECIBIDO', // entra dinero prestado
+  PAGO_PRESTAMO:      'PAGO_PRESTAMO',     // se devuelve capital del préstamo (los intereses son COSTO_RECONOCIDO)
 } as const;
 
 export type RecordType = (typeof RECORD_TYPE)[keyof typeof RECORD_TYPE];
@@ -342,6 +345,31 @@ export interface DbWorkHour {
   created_at?: string;
 }
 
+// ─── Inversiones: investments (migración 20261017000001) ─────────────────────
+// Cada fila es un aporte (patrimonio) o un préstamo recibido (deuda). Su dinero entra a caja con un
+// movimiento enlazado (APORTE_SOCIO o PRESTAMO_RECIBIDO) cuyo `notes` dice "Inversión INV-AAAA-NNN".
+export const INVESTMENT_KIND = {
+  PATRIMONIO: 'patrimonio', // aporte de socio: es dueño de una parte
+  DEUDA:      'deuda',      // préstamo: se devuelve con intereses
+} as const;
+
+export type InvestmentKind = (typeof INVESTMENT_KIND)[keyof typeof INVESTMENT_KIND];
+
+export interface DbInvestment {
+  id: number;
+  code: string;                     // INV-AAAA-NNN
+  kind: InvestmentKind;
+  investor_name: string;            // socio o prestamista
+  investor_doc: string | null;      // DNI/RUC
+  amount: number;                   // S/ > 0
+  investment_date: string;          // date → ISO string
+  payment_method: string | null;
+  description: string | null;
+  interest_rate: number;            // % anual (solo deuda; 0 en patrimonio)
+  term_months: number | null;       // plazo (solo deuda)
+  created_at?: string;
+}
+
 // ─── Database shape for supabase-js generic typing ──────────────────────────
 export interface Database {
   public: {
@@ -445,6 +473,11 @@ export interface Database {
         Row: DbWorkHour;
         Insert: Omit<DbWorkHour, 'id'> & { id?: number };
         Update: Partial<DbWorkHour>;
+      };
+      investments: {
+        Row: DbInvestment;
+        Insert: Omit<DbInvestment, 'id'> & { id?: number };
+        Update: Partial<DbInvestment>;
       };
     };
   };

@@ -176,37 +176,42 @@ export function computeResults(movements: EnrichedMovement[], mes: string, pcts:
 export interface CashReport {
   mes: string;
   openingBalance: number;
-  accumulated: { cobros: TracedAmount; aportes: TracedAmount; pagos: TracedAmount; retiros: TracedAmount };
-  closingBalance: number;       // inicial + cobros + aportes − pagos − retiros (acumulado a la fecha)
-  month: { cobros: TracedAmount; aportes: TracedAmount; pagos: TracedAmount; retiros: TracedAmount };
-  netFlow: number;              // cobros + aportes − pagos − retiros del mes
+  accumulated: CashFlows;
+  closingBalance: number;       // inicial + cobros + aportes + préstamos − pagos − retiros − pagos de préstamo (a la fecha)
+  month: CashFlows;
+  netFlow: number;              // lo mismo, solo el mes
 }
+
+/** Entradas y salidas de caja. Préstamos (deuda): entran al recibirlos y salen al devolver capital. */
+export interface CashFlows {
+  cobros: TracedAmount; aportes: TracedAmount; prestamos: TracedAmount;
+  pagos: TracedAmount; retiros: TracedAmount; pagosPrestamo: TracedAmount;
+}
+
+const netOf = (f: CashFlows) =>
+  f.cobros.amount + f.aportes.amount + f.prestamos.amount - f.pagos.amount - f.retiros.amount - f.pagosPrestamo.amount;
 
 export function computeCash(movements: EnrichedMovement[], mes: string, openingBalance: number): CashReport {
   const eligible = movements.filter(isEligible);
   const pick = (type: EnrichedMovement['record_type'], inMonthOnly: boolean): TracedAmount =>
     sumTraced(eligible.filter((m) => m.record_type === type && (inMonthOnly ? m.mes === mes : m.mes <= mes)));
 
-  const accumulated = {
-    cobros: pick(RECORD_TYPE.COBRO, false),
-    aportes: pick(RECORD_TYPE.APORTE_SOCIO, false),
-    pagos: pick(RECORD_TYPE.PAGO, false),
-    retiros: pick(RECORD_TYPE.RETIRO_SOCIO, false),
-  };
-  const month = {
-    cobros: pick(RECORD_TYPE.COBRO, true),
-    aportes: pick(RECORD_TYPE.APORTE_SOCIO, true),
-    pagos: pick(RECORD_TYPE.PAGO, true),
-    retiros: pick(RECORD_TYPE.RETIRO_SOCIO, true),
-  };
+  const flows = (inMonthOnly: boolean): CashFlows => ({
+    cobros: pick(RECORD_TYPE.COBRO, inMonthOnly),
+    aportes: pick(RECORD_TYPE.APORTE_SOCIO, inMonthOnly),
+    prestamos: pick(RECORD_TYPE.PRESTAMO_RECIBIDO, inMonthOnly),
+    pagos: pick(RECORD_TYPE.PAGO, inMonthOnly),
+    retiros: pick(RECORD_TYPE.RETIRO_SOCIO, inMonthOnly),
+    pagosPrestamo: pick(RECORD_TYPE.PAGO_PRESTAMO, inMonthOnly),
+  });
+  const accumulated = flows(false);
+  const month = flows(true);
   return {
     mes,
     openingBalance,
     accumulated,
-    closingBalance: round2(
-      openingBalance + accumulated.cobros.amount + accumulated.aportes.amount - accumulated.pagos.amount - accumulated.retiros.amount,
-    ),
+    closingBalance: round2(openingBalance + netOf(accumulated)),
     month,
-    netFlow: round2(month.cobros.amount + month.aportes.amount - month.pagos.amount - month.retiros.amount),
+    netFlow: round2(netOf(month)),
   };
 }

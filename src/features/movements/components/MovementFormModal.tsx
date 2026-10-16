@@ -32,6 +32,8 @@ const RECORD_LABEL: Record<RecordType, string> = {
   APORTE_SOCIO: 'Aporte de socio',
   RETIRO_SOCIO: 'Retiro de socio',
   COMPRA_ACTIVO: 'Compra de activo',
+  PRESTAMO_RECIBIDO: 'Préstamo recibido (entra dinero)',
+  PAGO_PRESTAMO: 'Pago de préstamo (sale dinero)',
 };
 const CLASS_OPTIONS: ExpenseClass[] = [EXPENSE_CLASS.DIRECTO, EXPENSE_CLASS.ATRIBUIBLE, EXPENSE_CLASS.COMPARTIDO];
 

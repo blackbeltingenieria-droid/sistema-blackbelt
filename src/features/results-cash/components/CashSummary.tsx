@@ -41,7 +41,7 @@ export function CashSummary({ cash, onTrace, onSaveOpening }: CashSummaryProps) 
   return (
     <Card>
       <h2 className="bb-display font-semibold text-ink text-base mb-1">Caja</h2>
-      <p className="bb-body text-xs text-ink-soft mb-3">Cobros + aportes − pagos − retiros. El costo reconocido no afecta la caja.</p>
+      <p className="bb-body text-xs text-ink-soft mb-3">Cobros + aportes + préstamos − pagos − retiros − devolución de préstamos. El costo reconocido no afecta la caja.</p>
       <dl>
         {line('Saldo inicial configurado', editing ? (
           <form onSubmit={save} className="flex items-center gap-2">
@@ -54,8 +54,10 @@ export function CashSummary({ cash, onTrace, onSaveOpening }: CashSummaryProps) 
         ))}
         {line('Cobros de clientes · acumulado', <TraceFigure amount={cash.accumulated.cobros.amount} ids={cash.accumulated.cobros.ids} label="Cobros acumulados" onOpen={onTrace} />, '+')}
         {line('Aportes de socios · acumulado', <TraceFigure amount={cash.accumulated.aportes.amount} ids={cash.accumulated.aportes.ids} label="Aportes acumulados" onOpen={onTrace} />, '+')}
+        {cash.accumulated.prestamos.amount > 0 && line('Préstamos recibidos · acumulado', <TraceFigure amount={cash.accumulated.prestamos.amount} ids={cash.accumulated.prestamos.ids} label="Préstamos recibidos" onOpen={onTrace} />, '+')}
         {line('Pagos de la empresa · acumulado', <TraceFigure amount={cash.accumulated.pagos.amount} ids={cash.accumulated.pagos.ids} label="Pagos acumulados" onOpen={onTrace} />, '−')}
         {line('Retiros de socios · acumulado', <TraceFigure amount={cash.accumulated.retiros.amount} ids={cash.accumulated.retiros.ids} label="Retiros acumulados" onOpen={onTrace} />, '−')}
+        {cash.accumulated.pagosPrestamo.amount > 0 && line('Devolución de préstamos · acumulado', <TraceFigure amount={cash.accumulated.pagosPrestamo.amount} ids={cash.accumulated.pagosPrestamo.ids} label="Devolución de préstamos" onOpen={onTrace} />, '−')}
         <div className="flex items-center justify-between gap-3 py-3 mt-1 bg-canvas -mx-5 px-5">
           <dt className="bb-label-xs text-ink">Saldo de caja acumulado</dt>
           <dd className={`bb-mono text-base font-medium ${cash.closingBalance < 0 ? 'text-rust' : 'text-ink'}`} data-testid="cash-closing">{formatPen(cash.closingBalance)}</dd>
