@@ -28,6 +28,8 @@ export interface QuickEntryInput {
   unitId: number | null;
   projectId: number | null;
   categoryId: number | null;
+  /** Notas que se conservan al editar (enlace a un contrato de mano de obra, origen del Excel…). */
+  notes?: string | null;
 }
 
 export interface QuickCatalogs {
@@ -139,7 +141,7 @@ export function buildMainMovement(input: QuickEntryInput, c: QuickCatalogs): Mov
     payment_method: input.paymentMethod,
     voucher_number: null,
     status: MOVEMENT_STATUS.BORRADOR,
-    notes: null,
+    notes: input.notes ?? null,
   };
   return { ...values, status: statusFor(values, unit?.code ?? '') };
 }
@@ -188,7 +190,7 @@ export function buildCashPair(
 
 /** Valores del formulario rápido a partir de un movimiento guardado (para editar). */
 export function quickInputFromMovement(
-  m: Pick<MovementFormValues, 'record_type' | 'movement_date' | 'amount' | 'business_unit_id' | 'project_id' | 'cost_category_id' | 'counterparty' | 'detail' | 'payment_method'>,
+  m: Pick<MovementFormValues, 'record_type' | 'movement_date' | 'amount' | 'business_unit_id' | 'project_id' | 'cost_category_id' | 'counterparty' | 'detail' | 'payment_method'> & { notes?: string | null },
   hasPair: boolean,
   c: QuickCatalogs,
 ): QuickEntryInput {
@@ -204,6 +206,7 @@ export function quickInputFromMovement(
     unitId: m.business_unit_id === corpId ? null : m.business_unit_id,
     projectId: m.project_id,
     categoryId: m.cost_category_id || null,
+    notes: m.notes ?? null,
   };
 }
 

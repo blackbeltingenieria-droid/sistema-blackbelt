@@ -3,7 +3,7 @@ import { canAccess, homeFor } from './access';
 
 describe('acceso por rol', () => {
   it('admin entra a todo', () => {
-    for (const p of ['/dashboard', '/clients-projects', '/movements', '/budgets', '/results-cash', '/kanban/3', '/work-hours', '/my', '/users', '/investments']) {
+    for (const p of ['/dashboard', '/clients-projects', '/movements', '/budgets', '/results-cash', '/kanban/3', '/work-hours', '/my', '/users', '/investments', '/labor', '/recurring']) {
       expect(canAccess('admin', p)).toBe(true);
     }
   });
@@ -14,7 +14,7 @@ describe('acceso por rol', () => {
     expect(canAccess('colaborador', '/work-hours')).toBe(true);
   });
   it('colaborador no ve finanzas ni proyectos', () => {
-    for (const p of ['/dashboard', '/clients-projects', '/movements', '/budgets', '/results-cash', '/movements/5', '/users', '/investments']) {
+    for (const p of ['/dashboard', '/clients-projects', '/movements', '/budgets', '/results-cash', '/movements/5', '/users', '/investments', '/labor', '/recurring']) {
       expect(canAccess('colaborador', p)).toBe(false);
     }
   });

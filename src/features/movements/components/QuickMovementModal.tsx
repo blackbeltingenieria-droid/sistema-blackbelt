@@ -11,6 +11,17 @@ import {
   type QuickCatalogs, type QuickEntryInput, type QuickKind,
 } from '../domain/quick-entry';
 import { CORP_CODE } from '../domain/movement-rules';
+import { laborCodeIn, withLaborTag } from '../../labor/domain/labor';
+
+/** Contrato de mano de obra con saldo (para "¿Es pago a un colaborador?"). */
+export interface LaborOption {
+  code: string;
+  worker: string;
+  service: string;
+  pending: number;
+  unitId: number | null;      // null = toda la empresa
+  projectId: number | null;
+}
 
 interface QuickMovementModalProps {
   catalogs: QuickCatalogs;
@@ -25,6 +36,8 @@ interface QuickMovementModalProps {
   memory?: Map<string, ConceptMemory>;
   /** Medio de pago usado la última vez (se propone por defecto). */
   defaultPaymentMethod?: string | null;
+  /** Contratos de mano de obra: elegir uno rellena el pago con lo que falta. */
+  laborOptions?: LaborOption[];
 }
 
 const FORM_ID = 'quick-movement-form';
@@ -35,7 +48,7 @@ const chip = (active: boolean) =>
     active ? 'border-ink bg-ink text-paper' : 'border-line bg-paper text-ink hover:border-ink-soft'
   }`;
 
-export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, onClose, onAdvanced, onDelete, memory, defaultPaymentMethod = null }: QuickMovementModalProps) {
+export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, onClose, onAdvanced, onDelete, memory, defaultPaymentMethod = null, laborOptions = [] }: QuickMovementModalProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [v, setV] = useState<QuickEntryInput>(
     () => initial ?? {
@@ -72,6 +85,25 @@ export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, o
       counterparty: prev.counterparty ?? f.counterparty,
     }));
   }
+
+  // Egreso: ¿pago a un colaborador? (Mano de obra). Al editar uno ya enlazado, su monto vuelve a contar como "falta".
+  const laborCode = laborCodeIn(v.notes);
+  const initialLabor = laborCodeIn(initial?.notes);
+  const laborPending = (o: LaborOption) => o.pending + (editingCode && initialLabor === o.code && initial ? initial.amount : 0);
+  const laborList = laborOptions.filter((o) => laborPending(o) > 0 || o.code === laborCode);
+  const labor = laborCode ? laborOptions.find((o) => o.code === laborCode) : undefined;
+  const moId = catalogs.categories.find((c) => c.code === 'MO')?.id ?? null;
+  function chooseLabor(code: string) {
+    const o = laborOptions.find((x) => x.code === code);
+    if (!o) { patch({ notes: withLaborTag(v.notes, null) }); return; }
+    const amount = v.amount > 0 ? v.amount : Math.round(laborPending(o) * 100) / 100;
+    setAmountText(String(amount));
+    setV((prev) => ({
+      ...prev, amount, notes: withLaborTag(prev.notes, o.code), categoryId: moId, unitId: o.unitId, projectId: o.projectId,
+      counterparty: o.worker, concept: prev.concept.trim() ? prev.concept : `Pago a ${o.worker} – ${o.service}`,
+    }));
+  }
+  const laborLeft = labor ? Math.round((laborPending(labor) - v.amount) * 100) / 100 : null;
 
   const suggested = useMemo(() => suggestCategoryCode(v.concept), [v.concept]);
   const chosenCategory = v.categoryId ? catalogs.categories.find((c) => c.id === v.categoryId) : undefined;
@@ -221,6 +253,25 @@ export function QuickMovementModal({ catalogs, initial, editingCode, onSubmit, o
                   <p className={`bb-body text-xs mt-2 ${paymentNote.tone === 'warn' ? 'text-rust' : 'text-ink-soft'}`} data-testid="project-payment-note">{paymentNote.text}</p>
                 )}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* 1c. Egreso: ¿pago a un colaborador? (rellena con lo que falta pagarle) */}
+        {!isIncome && laborList.length > 0 && (
+          <div className="bg-canvas rounded-card p-3 space-y-1">
+            <label className="bb-label" htmlFor="q-labor">¿Es pago a un colaborador? <span className="text-ink-soft font-normal">— opcional</span></label>
+            <select id="q-labor" className="bb-input !bg-paper" value={laborCode ?? ''} onChange={(e) => chooseLabor(e.target.value)}>
+              <option value="">No</option>
+              {laborList.map((o) => (
+                <option key={o.code} value={o.code}>{o.worker} · {o.service} — {laborPending(o) > 0 ? `falta ${formatPen(laborPending(o))}` : 'pagado'}</option>
+              ))}
+            </select>
+            {labor && laborLeft !== null && (
+              <p className={`bb-body text-xs ${laborLeft < 0 ? 'text-rust' : 'text-ink-soft'}`} data-testid="labor-note">
+                {laborLeft < 0 ? `Es más de lo que falta pagarle (${formatPen(laborPending(labor))}).`
+                  : laborLeft === 0 ? 'Con este pago queda todo pagado.' : `Después de este pago faltarán ${formatPen(laborLeft)}.`}
+              </p>
             )}
           </div>
         )}
