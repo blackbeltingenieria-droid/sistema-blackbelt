@@ -23,5 +23,6 @@ export default defineConfig({
     { command: 'npm run dev -- --host 127.0.0.1 --port 5173', url: 'http://127.0.0.1:5173', reuseExistingServer: true, timeout: 60_000 },
     { command: 'npm run dev:demo -- --host 127.0.0.1 --port 5174', url: 'http://127.0.0.1:5174', reuseExistingServer: true, timeout: 60_000 },
     { command: 'npm run dev:vacio -- --host 127.0.0.1 --port 5175', url: 'http://127.0.0.1:5175', reuseExistingServer: true, timeout: 60_000 },
+    { command: 'npm run dev:login -- --host 127.0.0.1 --port 5176', url: 'http://127.0.0.1:5176', reuseExistingServer: true, timeout: 60_000 },
   ],
 });

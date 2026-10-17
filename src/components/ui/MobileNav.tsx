@@ -10,11 +10,13 @@ interface MobileNavProps {
   items: NavItem[];
   userName: string;
   onSignOut: () => void;
+  signOutLabel?: string;
+  onChangePassword?: () => void;
 }
 
 const TAB = 'relative flex flex-col items-center justify-center gap-0.5 h-16 px-1 transition-colors';
 
-export function MobileNav({ items, userName, onSignOut }: MobileNavProps) {
+export function MobileNav({ items, userName, onSignOut, signOutLabel = 'Cambiar usuario', onChangePassword }: MobileNavProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const { pathname } = useLocation();
   const primary = items.filter((i) => i.primary);
@@ -50,11 +52,20 @@ export function MobileNav({ items, userName, onSignOut }: MobileNavProps) {
                 </NavLink>
               </li>
             ))}
+            {onChangePassword && (
+              <li className="border-t border-white/10 mt-1 pt-1">
+                <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); onChangePassword(); }}
+                  className="w-full flex items-center gap-3 px-3 min-h-[48px] rounded-card text-sm text-white/80 active:bg-white/10">
+                  <span className="text-lg leading-none" aria-hidden="true">🔑</span>
+                  <span className="bb-body">Mi contraseña</span>
+                </button>
+              </li>
+            )}
             <li className="border-t border-white/10 mt-1 pt-1">
               <button type="button" role="menuitem" onClick={onSignOut}
                 className="w-full flex items-center justify-between gap-3 px-3 min-h-[48px] rounded-card text-sm text-white/80 active:bg-white/10">
                 <span className="bb-body truncate">{userName}</span>
-                <span className="bb-body text-xs underline underline-offset-2 shrink-0">Cambiar usuario</span>
+                <span className="bb-body text-xs underline underline-offset-2 shrink-0">{signOutLabel}</span>
               </button>
             </li>
           </ul>

@@ -89,3 +89,15 @@ export async function createUser(payload: CreateUserPayload): Promise<UserRow> {
   if (error) throw new Error(`createUser: ${error.message}`);
   return toRow(data as DbUser, roles) as UserRow;
 }
+
+/** Quitar acceso (active = false) o devolverlo. Sin acceso no puede entrar ni leer nada. */
+export async function setUserActive(userId: number, active: boolean): Promise<void> {
+  if (!isSupabaseConfigured()) {
+    const u = userStore.users.find((x) => x.id === userId);
+    if (!u) throw new Error('Usuario no encontrado.');
+    u.active = active;
+    return;
+  }
+  const { error } = await sb().from('users').update({ active }).eq('id', userId);
+  if (error) throw new Error(`setUserActive: ${error.message}`);
+}

@@ -16,19 +16,33 @@ import { useAuth } from '../auth/hooks/useAuth';
 import { createSpecialist, setSpecialistActive, updateSpecialist } from '../kanban/services/kanban-service';
 import type { Specialist } from '../kanban/types';
 import { useUsers } from './hooks/useUsers';
-import { createUser, linkSpecialist, type UserRow } from './services/user-service';
+import { createUser, linkSpecialist, setUserActive, type UserRow } from './services/user-service';
+import { MIN_PASSWORD, setLoginPassword, validatePassword } from '../auth/services/login-service';
 
 const btn = 'px-3 py-1.5 min-h-[36px] border border-line rounded-card bb-body text-xs hover:bg-canvas whitespace-nowrap';
 const primary = 'min-h-[44px] sm:min-h-0 px-5 py-2.5 bg-gold text-ink rounded-card bb-body text-sm font-semibold hover:bg-gold/90';
 
-interface SpecialistForm { id?: number; fullName: string; specialty: string; email: string; giveAccess: boolean; role: RoleCode }
+interface SpecialistForm { id?: number; fullName: string; specialty: string; email: string; giveAccess: boolean; role: RoleCode; password: string }
 /** Primer usuario del sistema (Gerente General). */
 const FIRST_USER_NAME = 'Henry Torres Rivera';
 
-const EMPTY_SPEC: SpecialistForm = { fullName: '', specialty: '', email: '', giveAccess: true, role: ROLE_CODE.COLABORADOR };
+const EMPTY_SPEC: SpecialistForm = { fullName: '', specialty: '', email: '', giveAccess: true, role: ROLE_CODE.COLABORADOR, password: '' };
+
+/** Campo de contraseña inicial (la persona la cambia después en «Mi contraseña»). */
+function PasswordInput({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label className="bb-label" htmlFor={id}>Contraseña para entrar <span className="text-ink-soft font-normal">— mínimo {MIN_PASSWORD}</span></label>
+      <input id={id} type="text" autoComplete="off" className="bb-input bb-mono" value={value} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
 
 export function UsersPage() {
-  const { user: me, refresh } = useAuth();
+  const { user: me, refresh, passwordLogin } = useAuth();
+  // Contraseña nueva para un usuario (Administrador) y confirmación de quitar acceso.
+  const [pwFor, setPwFor] = useState<{ id: number; email: string; password: string } | null>(null);
+  const [confirmRevoke, setConfirmRevoke] = useState<number | null>(null);
   const { users, specialists, loading, error, refetch } = useUsers();
   const [params] = useSearchParams();
   const [msg, setMsg] = useState<string | null>(null);
@@ -36,13 +50,16 @@ export function UsersPage() {
   const [showHelp, setShowHelp] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [specForm, setSpecForm] = useState<SpecialistForm | null>(null);
-  const [access, setAccess] = useState<{ specialist: Specialist; email: string; role: RoleCode } | null>(null);
+  const [access, setAccess] = useState<{ specialist: Specialist; email: string; role: RoleCode; password: string } | null>(null);
   const isBootstrap = me?.id === BOOTSTRAP_ADMIN.id;
   const [showUserForm, setShowUserForm] = useState(params.get('nuevo') === '1' || isBootstrap);
   // Primer acceso: el primer usuario es el Gerente General, Henry Torres Rivera (Administrador, vinculado a su especialista).
-  const [userForm, setUserForm] = useState<{ fullName: string; email: string; role: RoleCode; specialistId: number }>({
-    fullName: isBootstrap ? FIRST_USER_NAME : '', email: '', role: ROLE_CODE.ADMIN, specialistId: 0,
+  const [userForm, setUserForm] = useState<{ fullName: string; email: string; role: RoleCode; specialistId: number; password: string }>({
+    fullName: isBootstrap ? FIRST_USER_NAME : '', email: '', role: ROLE_CODE.ADMIN, specialistId: 0, password: '',
   });
+  /** Con login por contraseña, toda cuenta nueva necesita su contraseña inicial. */
+  const passwordProblem = (pw: string) => (passwordLogin ? validatePassword(pw) : null);
+  const accessText = (email: string, pw: string) => (passwordLogin ? ` Entra con ${email.trim()} y la contraseña «${pw}». Pásale estos datos.` : '');
   const firstUserSpecialist = specialists.find((s) => s.full_name.trim().toLowerCase() === FIRST_USER_NAME.toLowerCase());
   const formSpecialistId = isBootstrap && !userForm.specialistId && firstUserSpecialist ? firstUserSpecialist.id : userForm.specialistId;
   const taken = new Set(users.filter((u) => u.specialistId).map((u) => u.specialistId));
@@ -70,6 +87,8 @@ export function UsersPage() {
     if (!specForm) return;
     const f = specForm;
     if (!f.id && f.giveAccess && !f.email.trim()) { setActionError('Para que entre al sistema, escribe su correo.'); return; }
+    const pwProblem = !f.id && f.giveAccess ? passwordProblem(f.password) : null;
+    if (pwProblem) { setActionError(pwProblem); return; }
     await run(async () => {
       const payload = { full_name: f.fullName, specialty: f.specialty || null, email: f.email || null };
       if (f.id) {
@@ -80,10 +99,11 @@ export function UsersPage() {
       const created = await createSpecialist(payload);
       if (f.giveAccess) {
         await createUser({ fullName: created.full_name, email: f.email, role: f.role, specialistId: created.id });
+        if (passwordLogin) await setLoginPassword(f.email, f.password);
       }
       setSpecForm(null);
       return f.giveAccess
-        ? `«${created.full_name}» agregado. Ya puede entrar al sistema y verá sus tareas y horas.`
+        ? `«${created.full_name}» agregado. Ya puede entrar al sistema y verá sus tareas y horas.${accessText(f.email, f.password)}`
         : `«${created.full_name}» agregado. Ya aparece para asignarle tareas y horas.`;
     });
   }
@@ -92,24 +112,30 @@ export function UsersPage() {
     e.preventDefault();
     if (!access) return;
     const a = access;
+    const pwProblem = passwordProblem(a.password);
+    if (pwProblem) { setActionError(pwProblem); return; }
     await run(async () => {
       await createUser({ fullName: a.specialist.full_name, email: a.email, role: a.role, specialistId: a.specialist.id });
+      if (passwordLogin) await setLoginPassword(a.email, a.password);
       setAccess(null);
-      return `«${a.specialist.full_name}» ya puede entrar al sistema.`;
+      return `«${a.specialist.full_name}» ya puede entrar al sistema.${accessText(a.email, a.password)}`;
     });
   }
 
   async function onCreateUser(e: FormEvent) {
     e.preventDefault();
     setActionError(null); setMsg(null);
+    const pwProblem = passwordProblem(userForm.password);
+    if (pwProblem) { setActionError(pwProblem); return; }
     try {
       const created = await createUser({ ...userForm, specialistId: formSpecialistId || null });
+      if (passwordLogin) await setLoginPassword(created.email, userForm.password);
       await refetch();
       // Desde el acceso inicial, pasa a usar el usuario recién creado (ya vinculado).
       await refresh(isBootstrap ? created.id : undefined);
-      setUserForm({ fullName: '', email: '', role: ROLE_CODE.COLABORADOR, specialistId: 0 });
+      setUserForm({ fullName: '', email: '', role: ROLE_CODE.COLABORADOR, specialistId: 0, password: '' });
       setShowUserForm(false);
-      setMsg(`Usuario «${created.fullName}» creado.`);
+      setMsg(`Usuario «${created.fullName}» creado.${accessText(created.email, userForm.password)}`);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'No se pudo crear el usuario.');
     }
@@ -132,12 +158,12 @@ export function UsersPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               {s.active && !u && (
-                <button type="button" className={btn} onClick={() => setAccess({ specialist: s, email: s.email ?? '', role: ROLE_CODE.COLABORADOR })}>
+                <button type="button" className={btn} onClick={() => setAccess({ specialist: s, email: s.email ?? '', role: ROLE_CODE.COLABORADOR, password: '' })}>
                   Dar acceso
                 </button>
               )}
               <button type="button" className={btn}
-                onClick={() => setSpecForm({ id: s.id, fullName: s.full_name, specialty: s.specialty ?? '', email: s.email ?? '', giveAccess: false, role: ROLE_CODE.COLABORADOR })}>
+                onClick={() => setSpecForm({ id: s.id, fullName: s.full_name, specialty: s.specialty ?? '', email: s.email ?? '', giveAccess: false, role: ROLE_CODE.COLABORADOR, password: '' })}>
                 Editar
               </button>
               <button type="button" className={`${btn} ${s.active ? 'text-rust' : ''}`}
@@ -150,7 +176,7 @@ export function UsersPage() {
             </div>
           </div>
           {access?.specialist.id === s.id && (
-            <form onSubmit={onGiveAccess} className="grid grid-cols-1 sm:grid-cols-[1fr_12rem_auto] gap-3 items-end mt-3 pt-3 border-t border-line" noValidate>
+            <form onSubmit={onGiveAccess} className={`grid grid-cols-1 ${passwordLogin ? 'sm:grid-cols-[1fr_12rem_12rem_auto]' : 'sm:grid-cols-[1fr_12rem_auto]'} gap-3 items-end mt-3 pt-3 border-t border-line`} noValidate>
               <div><label className="bb-label" htmlFor="acc-email">Correo para entrar</label>
                 <input id="acc-email" className="bb-input" inputMode="email" value={access.email} onChange={(e) => setAccess({ ...access, email: e.target.value })} /></div>
               <div><label className="bb-label" htmlFor="acc-role">Puede ver</label>
@@ -158,6 +184,7 @@ export function UsersPage() {
                   <option value={ROLE_CODE.COLABORADOR}>Solo lo suyo (Colaborador)</option>
                   <option value={ROLE_CODE.ADMIN}>Todo (Administrador)</option>
                 </select></div>
+              {passwordLogin && <PasswordInput id="acc-password" value={access.password} onChange={(v) => setAccess({ ...access, password: v })} />}
               <div className="flex gap-2">
                 <button type="submit" className={primary}>Dar acceso</button>
                 <button type="button" className={btn} onClick={() => setAccess(null)}>Cancelar</button>
@@ -232,6 +259,7 @@ export function UsersPage() {
                       <option value={ROLE_CODE.ADMIN}>Todo (Administrador)</option>
                     </select>
                   )}
+                  {specForm.giveAccess && passwordLogin && <PasswordInput id="sp-password" value={specForm.password} onChange={(v) => setSpecForm({ ...specForm, password: v })} />}
                 </div>
               )}
               <div className="sm:col-span-2 flex flex-wrap gap-2">
@@ -283,6 +311,7 @@ export function UsersPage() {
                       <option value={0}>Ninguno (no tiene tareas ni horas)</option>
                       {active.map((s) => <option key={s.id} value={s.id} disabled={taken.has(s.id)}>{s.full_name}{taken.has(s.id) ? ' (ya tiene usuario)' : ''}</option>)}
                     </select></div>
+                  {passwordLogin && <PasswordInput id="u-password" value={userForm.password} onChange={(v) => setUserForm({ ...userForm, password: v })} />}
                   <div className="sm:col-span-2">
                     <button type="submit" className={`w-full sm:w-auto ${primary}`}>Crear usuario</button>
                   </div>
@@ -302,6 +331,43 @@ export function UsersPage() {
                           <p className="bb-body text-sm font-medium text-ink truncate">{u.fullName}{me?.id === u.id && <span className="bb-mono text-[10px] text-ink-soft ml-2">(tú)</span>}</p>
                           <p className="bb-mono text-[11px] text-ink-soft truncate">{u.email}</p>
                           <span className={`inline-block mt-1 bb-mono text-[10px] px-2 py-0.5 rounded-full ${u.role === ROLE_CODE.ADMIN ? 'bg-ink text-paper' : 'bg-belt-backlog text-ink'}`}>{u.roleName}</span>
+                          {!u.active && <span className="inline-block mt-1 ml-2 bb-mono text-[10px] px-2 py-0.5 rounded-full bg-rust text-paper">Sin acceso</span>}
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {passwordLogin && u.active && (
+                              <button type="button" className={btn} data-testid={`set-password-${u.id}`} onClick={() => setPwFor(pwFor?.id === u.id ? null : { id: u.id, email: u.email, password: '' })}>
+                                {me?.id === u.id ? 'Mi contraseña nueva' : 'Poner contraseña nueva'}
+                              </button>
+                            )}
+                            {me?.id !== u.id && (confirmRevoke === u.id ? (
+                              <span className="flex flex-wrap items-center gap-2">
+                                <span className="bb-body text-xs text-ink">¿Quitar el acceso? Ya no podrá entrar.</span>
+                                <button type="button" className="px-2 py-1 bg-rust text-paper rounded-card bb-body text-xs"
+                                  onClick={() => { setConfirmRevoke(null); void run(async () => { await setUserActive(u.id, false); return `«${u.fullName}» ya no puede entrar al sistema.`; }); }}>Sí, quitar</button>
+                                <button type="button" className={btn} onClick={() => setConfirmRevoke(null)}>No</button>
+                              </span>
+                            ) : u.active ? (
+                              <button type="button" className={`${btn} text-rust`} onClick={() => setConfirmRevoke(u.id)}>Quitar acceso</button>
+                            ) : (
+                              <button type="button" className={btn} onClick={() => void run(async () => { await setUserActive(u.id, true); return `«${u.fullName}» puede entrar de nuevo.`; })}>Devolver acceso</button>
+                            ))}
+                          </div>
+                          {pwFor?.id === u.id && (
+                            <form className="flex flex-col sm:flex-row sm:items-end gap-2 mt-2" noValidate data-testid="set-password-form"
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                const p = pwFor;
+                                const problem = validatePassword(p.password);
+                                if (problem) { setActionError(problem); return; }
+                                void run(async () => {
+                                  await setLoginPassword(p.email, p.password);
+                                  setPwFor(null);
+                                  return `Contraseña nueva para ${p.email}: «${p.password}». Pásasela; podrá cambiarla en «Mi contraseña».`;
+                                });
+                              }}>
+                              <PasswordInput id={`pw-${u.id}`} value={pwFor.password} onChange={(v) => setPwFor({ ...pwFor, password: v })} />
+                              <button type="submit" className={primary}>Guardar</button>
+                            </form>
+                          )}
                         </div>
                         <div className="sm:w-72">
                           <label className="bb-label" htmlFor={`link-${u.id}`}>Es el especialista</label>
