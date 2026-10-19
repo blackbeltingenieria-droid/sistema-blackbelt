@@ -1,5 +1,6 @@
 // features/dashboard-general/DashboardPage.tsx
-// Dashboard general: indicadores del mes, comparativa de unidades y ranking de herramientas.
+// Dashboard general: «Todo el tiempo» (la empresa desde el inicio, con gráficos simples) o «Por mes»
+// (indicadores del mes, comparativa de unidades y ranking de herramientas).
 // Todo se deriva de movimientos VALIDADO + OK y es trazable hasta su movement_id.
 
 import { useMemo, useState } from 'react';
@@ -10,14 +11,17 @@ import { MonthSelect } from '../../components/ui/MonthSelect';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { currentMonth, formatPen, monthRange } from '../../lib/format';
 import { TraceModal } from '../movements/components/TraceModal';
+import type { EnrichedMovement } from '../movements/types';
+import { CompanyOverview } from './components/CompanyOverview';
 import { ToolRankingCard } from './components/ToolRankingCard';
 import { UnitComparison } from './components/UnitComparison';
 import { useDashboardData } from './hooks/useDashboardData';
 
 export function DashboardPage() {
+  const [view, setView] = useState<'all' | 'month'>('all');
   const [month, setMonth] = useState(currentMonth());
   const { data, loading, error, refetch } = useDashboardData(month);
-  const [trace, setTrace] = useState<{ title: string; ids: number[] } | null>(null);
+  const [trace, setTrace] = useState<{ title: string; ids: number[]; movements?: EnrichedMovement[] } | null>(null);
 
   const months = useMemo(() => {
     const set = new Set(monthRange('2026-01', currentMonth()));
@@ -32,7 +36,19 @@ export function DashboardPage() {
   return (
     <div className="min-h-screen bg-canvas">
       <div className="px-4 py-5 sm:px-6 lg:px-10 lg:py-9">
-        <PageHeader title="Dashboard general" subtitle="Comparativo de unidades y herramientas. Cada cifra se puede rastrear hasta sus movimientos." />
+        <PageHeader title="Dashboard general" subtitle="Cómo va la empresa. Cada cifra se puede rastrear hasta sus registros." />
+        <div role="tablist" aria-label="Qué ver" className="flex gap-1 mb-4 border-b border-line">
+          {([['all', 'Todo el tiempo'], ['month', 'Por mes']] as const).map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={view === id} data-testid={`dash-view-${id}`} onClick={() => setView(id)}
+              className={`min-h-[44px] px-4 bb-body text-sm -mb-px border-b-2 ${view === id ? 'border-gold text-ink font-semibold' : 'border-transparent text-ink-soft hover:text-ink'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {view === 'all' ? (
+          <CompanyOverview onTrace={(title, ids, report) => setTrace({ title, ids, movements: report.movements })} />
+        ) : (<>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           <MonthSelect id="dash-month" label="Mes de análisis" value={month} months={months} onChange={setMonth} />
         </div>
@@ -62,8 +78,11 @@ export function DashboardPage() {
             </div>
           </>
         )}
+        </>)}
       </div>
-      {trace && data && <TraceModal title={trace.title} ids={trace.ids} movements={data.report.movements} onClose={() => setTrace(null)} />}
+      {trace && (trace.movements ?? data?.report.movements) && (
+        <TraceModal title={trace.title} ids={trace.ids} movements={trace.movements ?? data?.report.movements ?? []} onClose={() => setTrace(null)} />
+      )}
     </div>
   );
 }
