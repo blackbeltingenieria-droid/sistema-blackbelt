@@ -1,6 +1,7 @@
 // features/excel-data/excel-raw.ts
 // Filas tal cual del Excel «CUADRO DE COSTOS - PRIMER MODELO» (hojas TABLA_*). NO editar a mano:
-// es la fuente real. Las fechas 15/10/2025 de TABLA_INGRESOS filas 12 y 13 son ADELANTOS y se dejan tal cual.
+// es la fuente real. Las fechas 15/10/2025 de TABLA_INGRESOS filas 12 y 13 eran un error de digitación: la
+// empresa empezó en 2026 (confirmado por la usuaria, 19/10/2026) → 15/10/2026.
 // Solo se corrigen textos mal escritos: "15/010/2026" → 2026-10-15; "09/092026" → 2026-09-09.
 // Fuente: «CUADRO DE COSTOS - CORREGIDO.xlsx» (auditoría 16/10/2026: mismos montos, nombres y fechas corregidos).
 
@@ -9,8 +10,8 @@ export const EXCEL_INGRESOS = [
   { row: 9, client: "DIAZ CASTRO STHEFANY", doc: "60555252", product: "TESINA", group: "ORDENAR A FORMATO APA Y LEVANTAR OBSERVACIONES", spec: "Pago por culminacion", date: "2026-10-07", amount: 90, method: "YAPE" },
   { row: 10, client: "ANTHENOL BENITO FARROMEQUE MUTTO", doc: "44850179", product: "PROYECTO DE INVESTIGACION", group: "REALIZAR LA PARTE DE INTRODUCCION", spec: "Pago por la elaboracion de la Introduccion", date: "2026-10-10", amount: 400, method: "YAPE" },
   { row: 11, client: "ERIKA MERINO ROÑA", doc: null, product: "PROYECTO DE INVESTIGACION", group: "REALIZAR LA PARTE DE INTRODUCCION", spec: "Pago por la elaboracion de la Introduccion", date: "2026-10-10", amount: 400, method: "YAPE" },
-  { row: 12, client: "WILMER WILFREDO SANCHEZ MAMANI", doc: "45410158", product: "DESARROLLO DE TESIS", group: "DESARROLLO DE TESIS COMPLETA", spec: "Pago de Tesis primera entrega", date: "2025-10-15", amount: 1500, method: "YAPE" },
-  { row: 13, client: "TANIA LUCIA AROS RENGIFO", doc: "41705907", product: "DESARROLLO DE TESIS", group: "DESARROLLO DE TESIS COMPLETA", spec: "Pago de Tesis primera entrega", date: "2025-10-15", amount: 2050, method: "YAPE" },
+  { row: 12, client: "WILMER WILFREDO SANCHEZ MAMANI", doc: "45410158", product: "DESARROLLO DE TESIS", group: "DESARROLLO DE TESIS COMPLETA", spec: "Pago de Tesis primera entrega", date: "2026-10-15", amount: 1500, method: "YAPE" },
+  { row: 13, client: "TANIA LUCIA AROS RENGIFO", doc: "41705907", product: "DESARROLLO DE TESIS", group: "DESARROLLO DE TESIS COMPLETA", spec: "Pago de Tesis primera entrega", date: "2026-10-15", amount: 2050, method: "YAPE" },
 ] as const;
 
 export const EXCEL_EGRESOS = [
