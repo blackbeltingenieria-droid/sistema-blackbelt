@@ -25,7 +25,7 @@ Local (`npm run dev` sin Supabase) ya muestra estos datos. Para la nube (Supabas
 1. Migraciones (si aún no están): `20261016000001_work_hours_time_range.sql`, `20261017000001_investments.sql` y `20261018000001_labor_contracts.sql` (carpeta `supabase/migrations/`).
 2. `excel-01-respaldo-y-limpieza.sql` → cambia `v_confirmo` a `'SI'`. Copia cada tabla a `respaldo_20261016_*` y vacía movimientos, proyectos, clientes, pagos, metas, reparto, horas, tareas, sprints, inversiones y contratos de mano de obra. No toca usuarios, roles ni catálogos.
 3. `excel-02-cargar-datos.sql` → carga 5 clientes, 5 proyectos, 6 pagos, 7 especialistas, 88 movimientos, 2 inversiones y 7 contratos de mano de obra (en una transacción). Los cobros del 15/10/2025 son adelantos y quedan en 2025.
-4. `excel-03-verificar.sql` → las 16 filas deben decir **OK** (ingresos 5,240 · egresos 4,839.73 · inversión 1,500 · caja 1,900.27 · contratado 8,340 · falta cobrar 3,100 · adelantos 2025 3,550 · mano de obra 4,700 / 3,300 / 1,400 · servicios y publicidad 446.10 · herramientas 646.90 · resultado 400.27). Cuadra con «CUADRO DE COSTOS - CORREGIDO.xlsx» (hoja AUDITORIA).
+4. `excel-03-verificar.sql` → las 16 filas deben decir **OK** (ingresos 5,240 · egresos 4,839.73 · inversión 1,500 · caja 1,900.27 · contratado 8,340 · falta cobrar 3,100 · nada antes de 2026 · mano de obra 4,700 / 3,300 / 1,400 · servicios y publicidad 446.10 · herramientas 646.90 · resultado 400.27). Cuadra con «CUADRO DE COSTOS - CORREGIDO.xlsx» (hoja AUDITORIA).
 5. Si Henry aún no tiene usuario: `primer-usuario.sql` (con su correo).
 
 Regenerar los SQL: `npm run seed:excel:sql` (fuente única: `src/features/excel-data`).

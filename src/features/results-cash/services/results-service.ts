@@ -68,6 +68,7 @@ export interface MonthReport {
   budgets: DbBudget[];              // metas del mes (para el aviso de presupuesto del Resumen)
   projectsReceivable: number;       // lo que falta pagar de los proyectos no cancelados
   laborPending: number;             // lo que falta pagar al equipo (Mano de obra)
+  laborOwedRegistered: number;      // de eso, lo ya anotado como egreso "aún lo debo" (ya está en las cuentas)
 }
 
 /** Un solo mes (lo usa también el Dashboard). */
@@ -80,7 +81,9 @@ export async function getPeriodReport(period: Period, current = currentMonth()):
   const [movements, allocations, opening, projects, contracts] = await Promise.all([
     getMovements(), getAllocationsByMonth(), getOpeningCash(), getProjectRows().catch(() => []), getLaborContracts().catch(() => []),
   ]);
-  const laborPending = buildLaborReport(contracts, movements, `${current}-28`).totals.pending;
+  const labor = buildLaborReport(contracts, movements, `${current}-28`);
+  const laborPending = labor.totals.pending;
+  const laborOwedRegistered = Math.round(labor.rows.reduce((a, r) => a + r.owedRegistered, 0) * 100) / 100;
   const dataMonths = [...new Set(movements.map((m) => m.mes).filter(Boolean))].sort();
   const months = periodMonths(period, dataMonths, current);
   const mes = months[months.length - 1];
@@ -92,7 +95,10 @@ export async function getPeriodReport(period: Period, current = currentMonth()):
   const set = new Set(months);
   // Gráficos: un mes → últimos 6; un periodo → sus meses con registros (sin barras vacías de meses sin datos).
   const withData = months.filter((m) => dataMonths.includes(m));
-  const chartMonths = months.length === 1 ? lastMonths(mes, 6) : withData.length ? withData : months;
+  // Un mes: últimos 6, pero sin meses antes de que empiece la empresa (primer registro).
+  const firstData = dataMonths[0];
+  const recent = lastMonths(mes, 6).filter((m) => !firstData || m >= firstData);
+  const chartMonths = months.length === 1 ? (recent.length ? recent : [mes]) : withData.length ? withData : months;
   return {
     mes,
     period,
@@ -110,6 +116,7 @@ export async function getPeriodReport(period: Period, current = currentMonth()):
     budgets,
     projectsReceivable,
     laborPending,
+    laborOwedRegistered,
     pendingReview: movements.filter((m) => m.control !== 'OK').length,
     validMovementsInMonth: movements.filter((m) => set.has(m.mes) && m.status === 'VALIDADO' && m.control === 'OK').length,
   };

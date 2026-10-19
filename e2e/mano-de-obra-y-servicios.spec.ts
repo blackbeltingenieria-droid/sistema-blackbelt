@@ -67,21 +67,19 @@ test('resultados y caja: un mes, varios meses y todo desde el inicio', async ({ 
   await noHorizontalScroll(page);
 
   await page.getByTestId('period-range').click();
-  await page.locator('#rc-from').selectOption('2026-08');
+  await page.locator('#rc-from').selectOption('2026-09');
   await page.locator('#rc-to').selectOption('2026-10');
-  await expect(page.getByTestId('summary-income')).toHaveText('S/ 1,690.00');   // sin los adelantos de 2025
+  await expect(page.getByTestId('summary-income')).toHaveText('S/ 5,240.00');   // todo se cobró en sep–oct
   await expect(page.getByTestId('summary-cash')).toHaveText('S/ 1,900.27');
 
   await page.getByTestId('period-month').click();
-  await page.locator('#rc-month').selectOption('2025-10');
-  await expect(page.getByTestId('summary-verdict')).toHaveText('Estás ganando S/ 3,550.00');
+  await page.locator('#rc-month').selectOption('2026-10');
+  await expect(page.getByTestId('summary-income')).toHaveText('S/ 4,440.00');
 
   await page.getByRole('tab', { name: 'Detalle' }).click();
-  await page.getByTestId('period-year').click();               // toma el año del mes elegido: 2025
-  await expect(page.getByTestId('cash-closing')).toHaveText('S/ 3,550.00');
-  await page.locator('#rc-year').selectOption('2026');
+  await page.getByTestId('period-year').click();               // el año del mes elegido: 2026
   await expect(page.getByTestId('cash-closing')).toHaveText('S/ 1,900.27');
-  await expect(page.getByTestId('cash-period-opening')).toHaveText('S/ 3,550.00');
+  await expect(page.getByTestId('cash-period-opening')).toHaveText('S/ 0.00');
 });
 
 test('pago a colaborador por error: se deshace y vuelve todo como estaba', async ({ page }) => {
@@ -118,7 +116,7 @@ test('editar un cobro ya guardado muestra lo que de verdad falta', async ({ page
   await expect(box.getByTestId('fill-pending')).toHaveCount(0);
   await expect(box.getByTestId('project-payment-note')).toHaveText('Después de este pago faltarán S/ 1,600.00.');
   await page.getByRole('button', { name: 'Cancelar' }).click();
-  await rowOf(page, 'MOV-2025-0003').getByRole('button', { name: 'Editar' }).click();
+  await rowOf(page, 'MOV-2026-0077').getByRole('button', { name: 'Editar' }).click();
   const tania = page.getByRole('dialog').getByTestId('project-balance');
   await expect(tania).toContainText('S/ 2,050.00');
   await expect(tania.getByText('S/ 0.00')).toBeVisible();
@@ -131,4 +129,27 @@ test('resultados: si se cobra y se paga todo (como Hoja1 del Excel)', async ({ p
   await expect(page.getByTestId('summary-projected')).toContainText('S/ 3,100.00');
   await expect(page.getByTestId('summary-projected')).toContainText('S/ 1,400.00');
   await expect(page.getByTestId('summary-projected')).toContainText('ganarías S/ 2,100.27');
+});
+
+test('dashboard: la empresa desde el inicio, con gráficos simples', async ({ page }) => {
+  await login(page, 'Henry Torres');
+  await expect(page.getByTestId('company-overview')).toBeVisible();          // abre en «Todo el tiempo»
+  await expect(page.getByTestId('overview-verdict')).toHaveText('La empresa ha ganado S/ 400.27');
+  await expect(page.getByTestId('ov-income')).toHaveText('S/ 5,240.00');
+  await expect(page.getByTestId('ov-spent')).toHaveText('S/ 4,839.73');
+  await expect(page.getByTestId('ov-cash')).toHaveText('S/ 1,900.27');
+  await expect(page.getByTestId('ov-receivable')).toHaveText('S/ 3,100.00');
+  await expect(page.getByTestId('ov-payable')).toHaveText('S/ 1,400.00');    // lo que falta pagar al equipo
+  await expect(page.getByTestId('overview-months').locator('> div')).toHaveCount(3); // ago, sep, oct 2026
+  await expect(page.getByTestId('overview-sales')).toContainText('WILMER WILFREDO SANCHEZ MAMANI');
+  await noHorizontalScroll(page);
+  await page.getByTestId('dash-view-month').click();
+  await expect(page.locator('#dash-month')).toBeVisible();
+});
+
+test('resumen: «Debes» incluye lo que falta pagar al equipo', async ({ page }) => {
+  await login(page, 'Henry Torres');
+  await go(page, 'Resultados y caja');
+  await expect(page.getByTestId('summary-owes')).toHaveText('Te deben S/ 3,100.00 · Debes S/ 1,400.00');
+  await expect(page.getByTestId('summary-trend').locator('li')).toHaveCount(3);  // sin meses antes de agosto 2026
 });

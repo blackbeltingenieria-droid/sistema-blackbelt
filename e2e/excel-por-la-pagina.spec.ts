@@ -164,15 +164,14 @@ test('el Excel cargado a mano por la página cuadra con el Excel', async ({ page
 
   await go(page, 'Resultados y caja');
   await expect(page.getByTestId('summary-cash')).toHaveText(fmt(EXCEL_TOTALES.fondoEnCaja));
-  // Todo desde el inicio = el Excel completo (incluye los adelantos de octubre 2025)
+  // Todo desde el inicio = el Excel completo
   await page.getByTestId('period-all').click();
   await expect(page.getByTestId('summary-income')).toHaveText(fmt(EXCEL_TOTALES.ingresos));
   await expect(page.getByTestId('summary-spent')).toHaveText(fmt(EXCEL_TOTALES.egresos));
   await expect(page.getByTestId('summary-cash')).toHaveText(fmt(EXCEL_TOTALES.fondoEnCaja));
   await page.getByTestId('period-month').click();
-  await page.locator('#rc-month').selectOption('2025-10');
-  await expect(page.getByTestId('summary-income')).toHaveText(fmt(3550));
   await page.locator('#rc-month').selectOption('2026-10');
+  await expect(page.getByTestId('summary-income')).toHaveText(fmt(4440));
   const since = page.getByTestId('summary-since-start');
   await expect(since).toContainText(fmt(EXCEL_TOTALES.ingresos));
   await expect(since).toContainText(fmt(EXCEL_TOTALES.egresos));

@@ -20,7 +20,10 @@ test.describe('Registro simple y resumen del negocio', () => {
     const spent = await money(page, 'summary-spent');
     expect(Math.abs(income - spent - result)).toBeLessThan(0.01);
     await expect(page.getByTestId('summary-expenses').locator('li').first()).toBeVisible();
-    await expect(page.getByTestId('summary-trend').locator('li')).toHaveCount(6);
+    // Últimos 6 meses, sin los anteriores al primer registro de la empresa.
+    const months = await page.getByTestId('summary-trend').locator('li').count();
+    expect(months).toBeGreaterThan(0);
+    expect(months).toBeLessThanOrEqual(6);
     await noHorizontalScroll(page);
   });
 

@@ -52,6 +52,8 @@ test.describe('Admin: flujos principales', () => {
 
   test('el dashboard muestra comparación de unidades y ranking SOFT', async ({ page }) => {
     await go(page, 'Dashboard');
+    await expect(page.getByTestId('company-overview')).toBeVisible();   // abre en «Todo el tiempo»
+    await page.getByTestId('dash-view-month').click();
     await expect(page.getByTestId('unit-row-CORP').or(page.locator('[data-testid^="unit-row-"]').first())).toBeVisible();
     await noHorizontalScroll(page);
   });

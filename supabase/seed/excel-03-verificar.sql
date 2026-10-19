@@ -22,7 +22,7 @@ FROM (
   UNION ALL
   SELECT 'Falta cobrar' AS concepto, 3100::numeric AS excel, (SELECT (SELECT coalesce(sum(contracted_amount), 0) FROM projects) - (SELECT coalesce(sum(amount), 0) FROM project_payments))::numeric AS en_la_base
   UNION ALL
-  SELECT 'Adelantos cobrados en octubre 2025' AS concepto, 3550::numeric AS excel, (SELECT coalesce(sum(amount), 0) FROM movements WHERE status = 'VALIDADO' AND record_type = 'COBRO' AND movement_date BETWEEN '2025-10-01' AND '2025-10-31')::numeric AS en_la_base
+  SELECT 'Nada antes de 2026 (la empresa empezó este año)' AS concepto, 0::numeric AS excel, (SELECT count(*) FROM movements WHERE movement_date < '2026-01-01')::numeric AS en_la_base
   UNION ALL
   SELECT 'Mano de obra: monto requerido (TABLA_M.O)' AS concepto, 4700::numeric AS excel, (SELECT coalesce(sum(agreed_amount), 0) FROM labor_contracts WHERE active)::numeric AS en_la_base
   UNION ALL
