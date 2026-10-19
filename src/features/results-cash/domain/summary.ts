@@ -20,7 +20,7 @@ export interface BusinessSummary {
   sinceStart: { income: number; spent: number; result: number }; // acumulado desde el inicio hasta este mes
   /** Si se cobra todo lo que deben los clientes y se paga todo lo que se debe al equipo (como Hoja1 del Excel). */
   projected: { receivable: number; laborPending: number; result: number } | null;
-  payable: number;         // debes
+  payable: number;         // debes: gastos anotados sin pagar + lo que falta pagar al equipo (Mano de obra)
   reasons: string[];       // por qué, en 2–4 frases
   topExpenses: CategoryBar[];
   trend: MonthlyPoint[];
@@ -46,6 +46,8 @@ export function buildBusinessSummary(input: {
   previousLabel?: string;
   /** Lo que falta pagar al equipo (Mano de obra). */
   laborPending?: number;
+  /** De lo que falta pagar al equipo, lo que ya está anotado como egreso sin pagar (para no contarlo dos veces). */
+  laborOwedRegistered?: number;
 }): BusinessSummary {
   const { mes, results, previous, cash, movements, evolution, categoryNames, unitNames } = input;
   const t = results.totals;
@@ -54,7 +56,9 @@ export function buildBusinessSummary(input: {
   const spent = r2(income - result);
   const balances = pendingBalances(movements, mes);
   const receivable = input.projectsReceivable ?? balances.receivable;
-  const payable = balances.payable;
+  // Lo que falta pagar al equipo que todavía no se anotó como egreso (el resto ya está en balances.payable).
+  const laborNotRegistered = r2(Math.max(0, (input.laborPending ?? 0) - (input.laborOwedRegistered ?? 0)));
+  const payable = r2(balances.payable + laborNotRegistered);
   const upTo = movements.filter((m) => isEligible(m) && m.mes <= mes);
   const sumType = (t: string) => r2(upTo.filter((m) => m.record_type === t).reduce((a, m) => a + m.amount, 0));
   const startIncome = sumType(RECORD_TYPE.INGRESO_RECONOCIDO);
@@ -84,7 +88,7 @@ export function buildBusinessSummary(input: {
   }
 
   const projected = input.projectsReceivable !== undefined || input.laborPending
-    ? { receivable, laborPending: input.laborPending ?? 0, result: r2(sinceStart.result + receivable - (input.laborPending ?? 0)) }
+    ? { receivable, laborPending: input.laborPending ?? 0, result: r2(sinceStart.result + receivable - laborNotRegistered) }
     : null;
   return { verdict, result, income, spent, cash: cash.closingBalance, receivable, payable, sinceStart, projected, reasons: reasons.slice(0, 4), topExpenses, trend: evolution };
 }

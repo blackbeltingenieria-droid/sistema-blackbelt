@@ -14,9 +14,7 @@ describe('periodos de Resultados y caja', () => {
     expect(periodMonths({ kind: 'month', month: '2026-10' }, dataMonths, '2026-10')).toEqual(['2026-10']);
     expect(periodMonths({ kind: 'range', from: '2026-08', to: '2026-10' }, dataMonths, '2026-10')).toEqual(['2026-08', '2026-09', '2026-10']);
     const all = periodMonths({ kind: 'all' }, dataMonths, '2026-10');
-    expect(all[0]).toBe('2025-10');            // los adelantos de 2025
-    expect(all.at(-1)).toBe('2026-10');
-    expect(all).toHaveLength(13);
+    expect(all).toEqual(['2026-08', '2026-09', '2026-10']);   // la empresa empezó en agosto 2026
     expect(periodMonths({ kind: 'year', year: '2026' }, dataMonths, '2026-10')).toHaveLength(10);
   });
 
@@ -49,9 +47,10 @@ describe('periodos de Resultados y caja', () => {
     const r = computeResultsForMonths(movs, months, () => ({}));
     const sum = months.reduce((a, m) => a + computeResults(movs, m, {}).totals.finalResult, 0);
     expect(r.totals.finalResult).toBe(Math.round(sum * 100) / 100);
-    expect(r.totals.finalResult).toBe(-3149.73);   // 400.27 − 3,550 de adelantos cobrados en 2025
-    const c = computeCashForMonths(movs, months, 0);
-    expect(c.periodOpening).toBe(3550);            // los adelantos de octubre 2025
+    expect(r.totals.finalResult).toBe(400.27);
+    const c = computeCashForMonths(movs, ['2026-09', '2026-10'], 0);
+    const aug = computeCashForMonths(movs, ['2026-08'], 0);
+    expect(c.periodOpening).toBe(aug.closingBalance);   // septiembre arranca con lo que quedó en agosto
     expect(c.closingBalance).toBe(1900.27);
   });
 });

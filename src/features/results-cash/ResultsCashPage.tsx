@@ -116,6 +116,7 @@ export function ResultsCashPage() {
                   evolution: report.evolution,
                   projectsReceivable: report.projectsReceivable,
                   laborPending: report.laborPending,
+                  laborOwedRegistered: report.laborOwedRegistered,
                   months: report.months,
                   previousLabel: report.previousLabel || undefined,
                   categoryNames: new Map(categories.map((c) => [c.id, CATEGORY_SHORT[c.code] ?? c.name])),
