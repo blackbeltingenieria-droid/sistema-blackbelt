@@ -2,7 +2,8 @@
 // Filas del Excel «CUADRO DE COSTOS - PRIMER MODELO» (hojas TABLA_*), versión actualizada por Gerencia (02/11/2026).
 // Generado con /tmp/claude-0/scripts/gen_raw.py — NO editar a mano. Correcciones al leer:
 //  - 15/10/2025 → 15/10/2026 (la empresa empezó en 2026); "15/010/2026" → 2026-10-15; "09/092026" → 2026-09-09.
-//  - TABLA_CLIENTES: falta pagar = contratado − pagado (Jackeline: el Excel escribe 1,000 a mano con contrato 800).
+//  - TABLA_CLIENTES: falta pagar = contratado − pagado 
+//  - Decisiones de Gerencia 03/11: Jackeline contrato 1,000; Bitel 14/10 por YAPE; fila 42 (12.13) = comisión del banco; Jeferson asistente (monto referencial).
 //  - Medio de pago en mayúsculas; DNI sin saltos de línea.
 
 export const EXCEL_INGRESOS = [
@@ -46,10 +47,10 @@ export const EXCEL_EGRESOS = [
   { row: 36, payer: "HENRY TORRES RIVERA", area: "GENERAL", unit: "GENERAL", product: "TRANSPORTE", group: "TRANSPORTES Y TRAMITES", spec: "Se pago el pasaje para la obtencion del RUC", date: "2026-10-12", amount: 8.0, method: "YAPE" },
   { row: 37, payer: "HENRY TORRES RIVERA", area: "GENERAL", unit: "GENERAL", product: "CENA", group: "REUNIONES EJECUTIVAS", spec: "Se pago una cena por la celebracion de la obtención del RUC", date: "2026-10-13", amount: 77.9, method: "YAPE" },
   { row: 38, payer: "HENRY TORRES RIVERA", area: "MARKETING", unit: "GENERAL", product: "ESPECIALISTA", group: "MARKETING DIGITAL", spec: "Marketeo que ayudara a conseguir mas clientes  (Alanis)", date: "2026-10-13", amount: 250.0, method: "YAPE" },
-  { row: 39, payer: "HENRY TORRES RIVERA", area: "DIRECCION ESTRATEGICA", unit: "GENERAL", product: "BITEL", group: "SERVICIO TELEFÓNICO", spec: "Servicio telefonico para los mensajes y llamadas de la empresa", date: "2026-10-14", amount: 39.9, method: "BBVA" },
+  { row: 39, payer: "HENRY TORRES RIVERA", area: "DIRECCION ESTRATEGICA", unit: "GENERAL", product: "BITEL", group: "SERVICIO TELEFÓNICO", spec: "Servicio telefonico para los mensajes y llamadas de la empresa", date: "2026-10-14", amount: 39.9, method: "YAPE" },
   { row: 40, payer: "HENRY TORRES RIVERA", area: "INVESTIGACION Y DESARROLLO", unit: "INVESTIGACION Y DESARROLLO", product: "ESPECIALISTA", group: "SERVICIOS DE INVESTIGACION", spec: "Servicio de desarrollo de tesis a Jhimmy Cortez", date: "2026-10-15", amount: 900.0, method: "YAPE" },
   { row: 41, payer: "HENRY TORRES RIVERA", area: "INVESTIGACION Y DESARROLLO", unit: "INVESTIGACION Y DESARROLLO", product: "ESPECIALISTA", group: "SERVICIOS DE INVESTIGACION", spec: "Especialista de ing. mecanica para la Tesis de Wilmer(Eddy Renato)", date: "2026-10-15", amount: 1300.0, method: "BBVA" },
-  { row: 42, payer: "HENRY TORRES RIVERA", area: "INVESTIGACION Y DESARROLLO", unit: "INVESTIGACION Y DESARROLLO", product: "ESPECIALISTA", group: "SERVICIOS DE INVESTIGACION", spec: "Especialista de ing. mecanica para la Tesis de Wilmer(Eddy Renato)", date: "2026-10-15", amount: 12.13, method: "BBVA" },
+  { row: 42, payer: "HENRY TORRES RIVERA", area: "GENERAL", unit: "GENERAL", product: "BBVA", group: "COMISION DEL BANCO", spec: "Comisión del banco por la transferencia al especialista de ing. mecánica (Eddy)", date: "2026-10-15", amount: 12.13, method: "BBVA" },
   { row: 43, payer: "HENRY TORRES RIVERA", area: "INVESTIGACION Y DESARROLLO", unit: "INVESTIGACION Y DESARROLLO", product: "ESPECIALISTA", group: "SERVICIOS DE INVESTIGACION", spec: "Servicio de desarrollo de tesis a Wilmer(henry)", date: "2026-10-15", amount: 100.0, method: "YAPE" },
   { row: 44, payer: "HENRY TORRES RIVERA", area: "GENERAL", unit: "GENERAL", product: "IA VIDEO", group: "HERRAMIENTAS DIGITALES", spec: "Herramienta para hacer videos con inteligencia artificial", date: "2026-10-15", amount: 45.0, method: "YAPE" },
   { row: 45, payer: "HENRY TORRES RIVERA", area: "MARKETING", unit: "GENERAL", product: "MICRÓFONO HOLLYLAND LARK A1", group: "MARKETING DIGITAL", spec: "Marketeo que ayudara a conseguir mas clientes.", date: "2026-10-16", amount: 341.11, method: "BBVA" },
@@ -81,7 +82,7 @@ export const EXCEL_CLIENTES = [
   { row: 15, name: "ÁNGELES MARIANA ESTHER", doc: "40639152", phone: null, service: "LEVANTAMIENTO DE OBSERVACIONES", institution: null, start: null, end: null, contracted: 800.0, paid: 100.0, pending: 700.0, excelPending: 700.0, stage: null },
   { row: 16, name: "JUAN RICARDO", doc: "76557853", phone: null, service: "MATRIZ DE CONSISTENCIA", institution: null, start: null, end: null, contracted: 200.0, paid: 0.0, pending: 200.0, excelPending: 200.0, stage: null },
   { row: 17, name: "DIANA KOICHEOSKI", doc: null, phone: null, service: "TESIS COMPLETA", institution: null, start: null, end: null, contracted: 3000.0, paid: 0.0, pending: 3000.0, excelPending: 3000.0, stage: null },
-  { row: 18, name: "JACKELINE IRINA ARIAS MAMNI", doc: "41828734", phone: null, service: "DISMINUCION DE IA 44% y LEVANTAR OBSERVACIONES", institution: null, start: null, end: null, contracted: 800.0, paid: 0.0, pending: 800.0, excelPending: 1000.0, stage: null },
+  { row: 18, name: "JACKELINE IRINA ARIAS MAMNI", doc: "41828734", phone: null, service: "DISMINUCION DE IA 44% y LEVANTAR OBSERVACIONES", institution: null, start: null, end: null, contracted: 1000.0, paid: 0.0, pending: 1000.0, excelPending: 1000.0, stage: null },
   { row: 19, name: "SHOTHELAY INDIRA ROSMERY CHILLITUPA PALACIOS", doc: "46231076", phone: null, service: "REDUCCION DE SIMILITUD 40%", institution: null, start: null, end: null, contracted: 90.0, paid: 0.0, pending: 90.0, excelPending: 90.0, stage: null },
   { row: 20, name: "JULISSA ELIANA MAMANI SUCASAIRE", doc: "75521448", phone: null, service: "ARTICULO DE INVESTIGACION", institution: null, start: null, end: null, contracted: 300.0, paid: 0.0, pending: 300.0, excelPending: 300.0, stage: null },
 ] as const;
@@ -94,7 +95,7 @@ export const EXCEL_MANO_OBRA = [
   { row: 15, name: "HENRY TORRES RIVERA", doc: "73972788", area: "INVESTIGACION Y DESARROLLO", unit: "INVESTIGACION Y DESARROLLO", service: "ASESORAMIENTO DE TESIS EN GENERAL", spec: "ASESORAR LA INVESTIGACION DE WILMER", client: "WILMER SANCHEZ MAMANI", term: "POR PROYECTO", start: "2026-09-18", end: "2026-10-18", required: 500.0, paid: 440.7, pending: 59.3 },
   { row: 16, name: "ALANIS BERAÚN PARDAVÉ", doc: "61467305", area: "INVESTIGACION Y DESARROLLO", unit: "MARKETING DIGITAL", service: "MARKETEO DE REDES SOCIALES", spec: "ACTIVAR Y MEJORAR LAS REDES SOCIALES, PUBLICITAR Y REALIZAR DISEÑOS", client: "BLACKBELT GROUP", term: "MENSUAL", start: "2026-10-04", end: "2026-10-05", required: 700.0, paid: 400.0, pending: 300.0 },
   { row: 17, name: "JOHANN IMANOL HERRERA RAMOS", doc: "73515597", area: "TECNOLOGIA Y DESARROLLO", unit: "GENERAL", service: "PRACTICANTE", spec: "MEJORAR EL SISTEMA DE BLACKBELT, ASI TAMBIEN COMO EL DESARROLLO DE ALGUNAS ACTIVIDADES", client: "BLACKBELT GROUP", term: "MENSUAL", start: "2026-10-08", end: "2026-11-08", required: 800.0, paid: 0.0, pending: 800.0 },
-  { row: 18, name: "JEFERSON RODRIGUEZ MALLQUI", doc: "76344270", area: null, unit: null, service: "POR DEFINIR", spec: null, client: "BLACKBELT GROUP", term: "MENSUAL", start: "2026-10-08", end: "2026-11-08", required: 700.0, paid: 0.0, pending: 700.0 },
+  { row: 18, name: "JEFERSON RODRIGUEZ MALLQUI", doc: "76344270", area: "GENERAL", unit: "GENERAL", service: "ASISTENTE", spec: "Asistente de la empresa. Prestación de servicios (recibo por honorarios, no planilla); trabaja en sus tiempos. Monto referencial: por definir.", client: "BLACKBELT GROUP", term: "MENSUAL", start: "2026-10-08", end: "2026-11-08", required: 700.0, paid: 0.0, pending: 700.0 },
 ] as const;
 
 /** Totales con los que la página y la base deben cuadrar (calculados de las filas de arriba). */
@@ -103,13 +104,13 @@ export const EXCEL_TOTALES = {
   egresos: 6282.1,
   inversion: 1500.0,
   fondoEnCaja: 557.9,
-  contratado: 13530.0,
+  contratado: 13730.0,
   pagadoClientes: 5340.0,
-  faltaCobrar: 8190.0,
+  faltaCobrar: 8390.0,
   manoObraRequerido: 5940.0,
   manoObraPagado: 3690.7,
   manoObraFalta: 2249.3,
   herramientas: 908.28,
   serviciosPublicidad: 724.96,
-  utilidadSiTodosPagan: 4998.6, // contratado − egresos − mano de obra por pagar
+  utilidadSiTodosPagan: 5198.6, // contratado − egresos − mano de obra por pagar
 } as const;

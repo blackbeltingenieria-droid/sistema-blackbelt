@@ -16,11 +16,11 @@ FROM (
   UNION ALL
   SELECT 'Fondo en caja' AS concepto, 557.9::numeric AS excel, (SELECT (SELECT value::numeric FROM app_settings WHERE key = 'opening_cash') + coalesce(sum(CASE WHEN record_type IN ('COBRO','APORTE_SOCIO','PRESTAMO_RECIBIDO') THEN amount WHEN record_type IN ('PAGO','RETIRO_SOCIO','PAGO_PRESTAMO') THEN -amount ELSE 0 END), 0) FROM movements WHERE status = 'VALIDADO')::numeric AS en_la_base
   UNION ALL
-  SELECT 'Monto contratado (TABLA_CLIENTES)' AS concepto, 13530::numeric AS excel, (SELECT coalesce(sum(contracted_amount), 0) FROM projects)::numeric AS en_la_base
+  SELECT 'Monto contratado (TABLA_CLIENTES)' AS concepto, 13730::numeric AS excel, (SELECT coalesce(sum(contracted_amount), 0) FROM projects)::numeric AS en_la_base
   UNION ALL
   SELECT 'Monto pagado por clientes' AS concepto, 5340::numeric AS excel, (SELECT coalesce(sum(amount), 0) FROM project_payments)::numeric AS en_la_base
   UNION ALL
-  SELECT 'Falta cobrar (contratado − pagado)' AS concepto, 8190::numeric AS excel, (SELECT (SELECT coalesce(sum(contracted_amount), 0) FROM projects) - (SELECT coalesce(sum(amount), 0) FROM project_payments))::numeric AS en_la_base
+  SELECT 'Falta cobrar (contratado − pagado)' AS concepto, 8390::numeric AS excel, (SELECT (SELECT coalesce(sum(contracted_amount), 0) FROM projects) - (SELECT coalesce(sum(amount), 0) FROM project_payments))::numeric AS en_la_base
   UNION ALL
   SELECT 'Nada antes de 2026 (la empresa empezó este año)' AS concepto, 0::numeric AS excel, (SELECT count(*) FROM movements WHERE movement_date < '2026-01-01')::numeric AS en_la_base
   UNION ALL

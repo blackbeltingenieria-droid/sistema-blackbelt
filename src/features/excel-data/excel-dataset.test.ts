@@ -31,7 +31,7 @@ describe('datos reales del Excel', () => {
   it('lo que falta cobrar por proyecto coincide con TABLA_CLIENTES', () => {
     const paid = (pid: number) => XLS_MOVEMENTS.filter((m) => m.type === 'COBRO' && m.projectId === pid).reduce((a, m) => a + m.amount, 0);
     const pending = XLS_PROJECTS.reduce((a, p) => a + (p.contracted - paid(p.id)), 0);
-    expect(pending).toBe(EXCEL_TOTALES.faltaCobrar);   // 8,190 (el Excel dice 8,390: Jackeline 1,000 escrito a mano con contrato 800)
+    expect(pending).toBe(EXCEL_TOTALES.faltaCobrar);   // 8,390 (Jackeline: contrato 1,000 confirmado por Gerencia)
   });
 });
 

@@ -126,9 +126,9 @@ test('editar un cobro ya guardado muestra lo que de verdad falta', async ({ page
 test('resultados: si se cobra y se paga todo (como Hoja1 del Excel)', async ({ page }) => {
   await login(page, 'Henry Torres');
   await go(page, 'Resultados y caja');
-  await expect(page.getByTestId('summary-projected')).toContainText('S/ 8,190.00');
+  await expect(page.getByTestId('summary-projected')).toContainText('S/ 8,390.00');
   await expect(page.getByTestId('summary-projected')).toContainText('S/ 2,249.30');
-  await expect(page.getByTestId('summary-projected')).toContainText('ganarías S/ 4,998.60');
+  await expect(page.getByTestId('summary-projected')).toContainText('ganarías S/ 5,198.60');
 });
 
 test('dashboard: la empresa desde el inicio, con gráficos simples', async ({ page }) => {
@@ -138,7 +138,7 @@ test('dashboard: la empresa desde el inicio, con gráficos simples', async ({ pa
   await expect(page.getByTestId('ov-income')).toHaveText('S/ 5,340.00');
   await expect(page.getByTestId('ov-spent')).toHaveText('S/ 6,282.10');
   await expect(page.getByTestId('ov-cash')).toHaveText('S/ 557.90');
-  await expect(page.getByTestId('ov-receivable')).toHaveText('S/ 8,190.00');
+  await expect(page.getByTestId('ov-receivable')).toHaveText('S/ 8,390.00');
   await expect(page.getByTestId('ov-payable')).toHaveText('S/ 2,249.30');    // lo que falta pagar al equipo
   await expect(page.getByTestId('overview-months').locator('> div')).toHaveCount(4); // ago, sep, oct, nov 2026
   await expect(page.getByTestId('overview-sales')).toContainText('WILMER WILFREDO SANCHEZ MAMANI');
@@ -150,6 +150,6 @@ test('dashboard: la empresa desde el inicio, con gráficos simples', async ({ pa
 test('resumen: «Debes» incluye lo que falta pagar al equipo', async ({ page }) => {
   await login(page, 'Henry Torres');
   await go(page, 'Resultados y caja');
-  await expect(page.getByTestId('summary-owes')).toHaveText('Te deben S/ 8,190.00 · Debes S/ 2,249.30');
+  await expect(page.getByTestId('summary-owes')).toHaveText('Te deben S/ 8,390.00 · Debes S/ 2,249.30');
   await expect(page.getByTestId('summary-trend').locator('li')).toHaveCount(4);  // ago–nov 2026, sin meses antes
 });

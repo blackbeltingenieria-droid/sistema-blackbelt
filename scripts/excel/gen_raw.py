@@ -48,6 +48,20 @@ for r in range(11, ws.max_row+1):
     if g(2) is None: continue
     mo.append(dict(row=r, name=txt(g(2)), doc=doc(g(3)), area=txt(g(4)), unit=txt(g(5)), service=txt(g(6)) or 'POR DEFINIR', spec=txt(g(7)),
                    client=txt(g(8)) or 'BLACKBELT GROUP', term=txt(g(9)), start=d(g(10)), end=d(g(11)), required=num(g(12)), paid=num(g(13)), pending=num(g(14))))
+norm0 = lambda s: (s or '').strip().upper()
+# ── Decisiones de Gerencia (03/11/2026) ──────────────────────────────────────
+for x in eg:
+    if x['row'] == 39: x['method'] = 'YAPE'                      # Bitel 14/10 se pagó por YAPE
+    if x['row'] == 42:                                            # 12.13 = comisión del banco (transferencia a Eddy)
+        x.update(group='COMISION DEL BANCO', product='BBVA', area='GENERAL', unit='GENERAL',
+                 spec='Comisión del banco por la transferencia al especialista de ing. mecánica (Eddy)')
+for x in cli:
+    if norm0(x['name']).startswith('JACKELINE'):                  # contrato 1,000; aún no paga nada
+        x['contracted'] = 1000.0; x['pending'] = round(1000.0 - x['paid'], 2)
+for x in mo:
+    if norm0(x['name']).startswith('JEFERSON'):                   # asistente; monto referencial
+        x.update(area='GENERAL', unit='GENERAL', service='ASISTENTE',
+                 spec='Asistente de la empresa. Prestación de servicios (recibo por honorarios, no planilla); trabaja en sus tiempos. Monto referencial: por definir.')
 r2 = lambda x: round(x + 1e-9, 2)
 tot = dict(
   ingresos=r2(sum(x['amount'] for x in ing)), egresos=r2(sum(x['amount'] for x in eg)), inversion=r2(sum(x['amount'] for x in inv)),
@@ -71,7 +85,8 @@ L.append('// features/excel-data/excel-raw.ts')
 L.append('// Filas del Excel «CUADRO DE COSTOS - PRIMER MODELO» (hojas TABLA_*), versión actualizada por Gerencia (02/11/2026).')
 L.append('// Generado con /tmp/claude-0/scripts/gen_raw.py — NO editar a mano. Correcciones al leer:')
 L.append('//  - 15/10/2025 → 15/10/2026 (la empresa empezó en 2026); "15/010/2026" → 2026-10-15; "09/092026" → 2026-09-09.')
-L.append('//  - TABLA_CLIENTES: falta pagar = contratado − pagado (Jackeline: el Excel escribe 1,000 a mano con contrato 800).')
+L.append('//  - TABLA_CLIENTES: falta pagar = contratado − pagado ')
+L.append('//  - Decisiones de Gerencia 03/11: Jackeline contrato 1,000; Bitel 14/10 por YAPE; fila 42 (12.13) = comisión del banco; Jeferson asistente (monto referencial).')
 L.append('//  - Medio de pago en mayúsculas; DNI sin saltos de línea.')
 L.append('')
 for name, rows in [('EXCEL_INGRESOS', ing), ('EXCEL_EGRESOS', eg), ('EXCEL_INVERSIONES', inv), ('EXCEL_CLIENTES', cli), ('EXCEL_MANO_OBRA', mo)]:
