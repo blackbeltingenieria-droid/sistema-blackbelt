@@ -11,7 +11,7 @@ const movs = EXCEL_DB_MOVEMENTS.map((m) => enrichMovement(m, code(m.business_uni
 describe('mano de obra (TABLA_M.O)', () => {
   const r = buildLaborReport(EXCEL_DB_LABOR_CONTRACTS, movs, '2026-10-16');
 
-  it('cuadra con el Excel: requerido 4,700 · pagado 3,300 · falta 1,400', () => {
+  it('cuadra con el Excel: requerido, pagado y falta (TABLA_M.O C8, C6, C4)', () => {
     expect(r.totals.agreed).toBe(EXCEL_TOTALES.manoObraRequerido);
     expect(r.totals.paid).toBe(EXCEL_TOTALES.manoObraPagado);
     expect(r.totals.pending).toBe(EXCEL_TOTALES.manoObraFalta);
@@ -33,7 +33,7 @@ describe('mano de obra (TABLA_M.O)', () => {
     expect(by('JOHANN')?.status).toBe('pendiente');
     expect(by('EDDY')?.payments.map((p) => [p.date, p.amount])).toEqual([['2026-09-15', 200], ['2026-10-15', 1300]]);
     expect(r.rows[0].status).toBe('vencido');   // lo más urgente primero
-    expect(r.phrases[0]).toContain('S/ 1,400.00');
+    expect(r.phrases[0]).toContain('S/ 2,249.30');   // TABLA_M.O C4
   });
 
   it('enlace en notas', () => {

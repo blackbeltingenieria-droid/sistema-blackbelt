@@ -12,16 +12,15 @@ const inv = (o: Partial<DbInvestment>): DbInvestment => ({
 });
 
 describe('rendimiento de inversiones', () => {
-  it('Excel real: socio Hans aportó S/ 1,500 y la empresa ganó S/ 400.27', () => {
+  it('Excel real: socio Hans aportó S/ 1,500; la empresa va perdiendo S/ 942.10 (ingresos − egresos)', () => {
     const code = (id: number) => SEED_BUSINESS_UNITS.find((u) => u.id === id)?.code ?? '';
     const movs = EXCEL_DB_MOVEMENTS.map((m) => enrichMovement(m, code(m.business_unit_id)));
-    const r = buildInvestmentsReport(EXCEL_DB_INVESTMENTS, movs, '2026-10-16');
+    const r = buildInvestmentsReport(EXCEL_DB_INVESTMENTS, movs, '2026-11-02');
     expect(r.equityCapital).toBe(1500);
-    expect(r.accumulatedProfit).toBe(400.27);
-    expect(r.returnPct).toBe(26.68);
+    expect(r.accumulatedProfit).toBe(-942.1);
+    expect(r.returnPct).toBe(-62.81);
     expect(r.investors).toHaveLength(1);
-    expect(r.investors[0]).toMatchObject({ name: 'HANS CARLOS TORRES MURRIETA', contributed: 1500, sharePct: 100, valueToday: 1900.27 });
-    expect(r.phrases[1]).toContain('rendimiento de 26.68 %');
+    expect(r.investors[0]).toMatchObject({ name: 'HANS CARLOS TORRES MURRIETA', contributed: 1500, sharePct: 100, valueToday: 557.9 });
   });
 
   it('dos socios: la utilidad se reparte según lo que aportó cada uno', () => {

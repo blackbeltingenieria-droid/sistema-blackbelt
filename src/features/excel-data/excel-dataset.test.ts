@@ -14,11 +14,11 @@ describe('datos reales del Excel', () => {
     expect(t.contratado).toBe(EXCEL_TOTALES.contratado);
     expect(t.pagadoClientes).toBe(EXCEL_TOTALES.pagadoClientes);
   });
-  it('5 clientes, 5 proyectos, 7 especialistas y 87 movimientos (6×2 + 37×2 + 2)', () => {
-    expect(XLS_CLIENTS).toHaveLength(5);
-    expect(XLS_PROJECTS).toHaveLength(5);
-    expect(XLS_SPECIALISTS).toHaveLength(7);
-    expect(XLS_MOVEMENTS).toHaveLength(6 * 2 + 37 * 2 + 2);
+  it('11 clientes, 11 proyectos, 8 especialistas y 114 movimientos (7×2 + 49×2 + 2)', () => {
+    expect(XLS_CLIENTS).toHaveLength(11);
+    expect(XLS_PROJECTS).toHaveLength(11);
+    expect(XLS_SPECIALISTS).toHaveLength(8);
+    expect(XLS_MOVEMENTS).toHaveLength(7 * 2 + 49 * 2 + 2);
   });
   it('códigos únicos y correlativos por fecha', () => {
     const codes = XLS_MOVEMENTS.map((m) => m.code);
@@ -31,7 +31,7 @@ describe('datos reales del Excel', () => {
   it('lo que falta cobrar por proyecto coincide con TABLA_CLIENTES', () => {
     const paid = (pid: number) => XLS_MOVEMENTS.filter((m) => m.type === 'COBRO' && m.projectId === pid).reduce((a, m) => a + m.amount, 0);
     const pending = XLS_PROJECTS.reduce((a, p) => a + (p.contracted - paid(p.id)), 0);
-    expect(pending).toBe(3100);
+    expect(pending).toBe(EXCEL_TOTALES.faltaCobrar);   // 8,390 (Jackeline: contrato 1,000 confirmado por Gerencia)
   });
 });
 
@@ -46,9 +46,9 @@ describe('filas locales', () => {
     expect(enriched.filter((m) => !isEligible(m)).map((m) => `${m.movement_code} ${m.control}`)).toEqual([]);
     const months = [...new Set(enriched.map((m) => m.mes))];
     const result = months.reduce((a, mes) => a + computeResults(enriched, mes, {}).totals.finalResult, 0);
-    expect(Math.round(result * 100) / 100).toBe(400.27);
-    expect(computeCash(enriched, '2026-10', 0).closingBalance).toBe(1900.27);
-    // Octubre 2026: Sthefany 90 + Anthenol 400 + Erika 400 + Wilmer 1,500 + Tania 2,050.
-    expect(computeResults(enriched, '2026-10', {}).totals.income).toBe(4440);
+    expect(Math.round(result * 100) / 100).toBe(Math.round((EXCEL_TOTALES.ingresos - EXCEL_TOTALES.egresos) * 100) / 100);
+    expect(computeCash(enriched, '2026-11', 0).closingBalance).toBe(EXCEL_TOTALES.fondoEnCaja);
+    // Octubre 2026: Sthefany 90 + Anthenol 400 + Erika 400 + Wilmer 1,500 + Tania 2,050 + Ángeles 100.
+    expect(computeResults(enriched, '2026-10', {}).totals.income).toBe(4540);
   });
 });

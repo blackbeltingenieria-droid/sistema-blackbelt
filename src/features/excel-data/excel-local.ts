@@ -21,7 +21,7 @@ const catId = (c: string) => idOf(SEED_COST_CATEGORIES, c);
 
 export const EXCEL_DB_CLIENTS: DbClient[] = EMPTY_MODE ? [] : XLS_CLIENTS.map((c) => ({
   id: c.id, name: c.name, client_type: 'Persona', doc_number: c.doc, phone: c.phone, email: null,
-  location: null, notes: c.institution, created_at: '2026-09-01T00:00:00Z',
+  location: null, notes: c.institution ?? null, created_at: '2026-09-01T00:00:00Z',
 }));
 
 export const EXCEL_DB_PROJECTS: DbProject[] = EMPTY_MODE ? [] : XLS_PROJECTS.map((p) => ({

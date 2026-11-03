@@ -14,7 +14,10 @@ import { Raw, lit } from '../demo/sql';
 const unit = (c: string) => new Raw(`(SELECT id FROM business_units WHERE code = ${lit(c)})`);
 const area = (c: string) => new Raw(`(SELECT id FROM areas WHERE code = ${lit(c)})`);
 const cat = (c: string) => new Raw(`(SELECT id FROM cost_categories WHERE code = ${lit(c)})`);
-const BACKUP = 'respaldo_20261016';
+/** Una copia nueva por cada carga (la anterior se conserva). */
+const BACKUP = 'respaldo_20261102';
+/** Especialistas que cambiaron de nombre en el Excel: se renombran (no se borran) para no perder su usuario. */
+const RENAMES: [string, string][] = [['Alanis Pardavé', 'Alanis Beraún Pardavé']];
 
 function insert(table: string, columns: string[], rows: Record<string, unknown>[]): string {
   const values = rows.map((r) => `  (${columns.map((c) => lit(r[c])).join(', ')})`).join(',\n');
@@ -22,9 +25,22 @@ function insert(table: string, columns: string[], rows: Record<string, unknown>[
 }
 
 const DATA_TABLES = ['labor_contracts', 'work_hours', 'tasks', 'sprints', 'movements', 'budgets', 'corp_allocation', 'project_payments', 'projects', 'clients', 'investments'];
+/** Actualizar (la nube ya está en uso): solo se reemplaza lo que viene del Excel. Horas, tareas, sprints,
+ *  metas, reparto, usuarios y especialistas agregados en la web se quedan; clientes y proyectos se actualizan. */
+const UPDATE_TABLES = ['labor_contracts', 'movements', 'project_payments', 'investments'];
 
-export function buildBackupAndCleanSql(): string {
+/** 'full' = base nueva (vacía todo); 'update' = base en uso (conserva el trabajo del equipo). */
+export type LoadMode = 'full' | 'update';
+
+/** Agrega ON CONFLICT (id) DO UPDATE a un INSERT (para clientes y proyectos en modo actualizar). */
+function upsert(sql: string, columns: string[]): string {
+  const set = columns.filter((c) => c !== 'id').map((c) => `${c} = EXCLUDED.${c}`).join(', ');
+  return `${sql.replace(/;$/, '')}\nON CONFLICT (id) DO UPDATE SET ${set};`;
+}
+
+export function buildBackupAndCleanSql(mode: LoadMode = 'full'): string {
   const names = XLS_SPECIALISTS.map((s) => lit(s.name.toLowerCase())).join(', ');
+  const clean = mode === 'update' ? UPDATE_TABLES : DATA_TABLES;
   return [
     `-- ==============================================================================`,
     `-- PASO 1 de 3 · RESPALDO Y LIMPIEZA antes de cargar el Excel «CUADRO DE COSTOS».`,
@@ -32,8 +48,10 @@ export function buildBackupAndCleanSql(): string {
     `--`,
     `-- Qué hace:`,
     `--   1. Copia cada tabla de datos a "${BACKUP}_<tabla>" (para poder recuperar cualquier cosa).`,
-    `--   2. Vacía: ${DATA_TABLES.join(', ')}.`,
-    `--   3. Quita los especialistas que no están en el Excel (Henry Torres Rivera se queda).`,
+    `--   2. Vacía: ${clean.join(', ')}.`,
+    mode === 'update'
+      ? `--   3. Conserva horas, tareas, metas, usuarios y especialistas; clientes y proyectos se actualizan en el paso 2.`
+      : `--   3. Quita los especialistas que no están en el Excel (Henry Torres Rivera se queda).`,
     `-- NO toca: usuarios, roles, catálogos (unidades, áreas, categorías) ni la configuración.`,
     `--`,
     `-- SEGURIDAD: no hace nada hasta que cambies 'NO' por 'SI' en la línea marcada.`,
@@ -63,20 +81,35 @@ export function buildBackupAndCleanSql(): string {
     `    END IF;`,
     `  END LOOP;`,
     ``,
-    `  FOREACH t IN ARRAY ARRAY[${DATA_TABLES.map((x) => lit(x)).join(', ')}] LOOP`,
+    `  FOREACH t IN ARRAY ARRAY[${clean.map((x) => lit(x)).join(', ')}] LOOP`,
     `    IF to_regclass(t) IS NOT NULL THEN EXECUTE format('DELETE FROM %I', t); END IF;`,
     `  END LOOP;`,
     ``,
-    `  UPDATE users SET specialist_id = NULL`,
-    `   WHERE specialist_id IN (SELECT id FROM specialists WHERE lower(full_name) NOT IN (${names}));`,
-    `  DELETE FROM specialists WHERE lower(full_name) NOT IN (${names});`,
-    `  RAISE NOTICE 'Listo: copia en tablas ${BACKUP}_* y datos de prueba borrados. Sigue con excel-02-cargar-datos.sql';`,
+    ...RENAMES.map(([from, to]) =>
+      `  UPDATE specialists SET full_name = ${lit(to)} WHERE lower(full_name) = ${lit(from.toLowerCase())}\n` +
+      `     AND NOT EXISTS (SELECT 1 FROM specialists WHERE lower(full_name) = ${lit(to.toLowerCase())});`),
+    ...(mode === 'update' ? [] : [
+      `  UPDATE users SET specialist_id = NULL`,
+      `   WHERE specialist_id IN (SELECT id FROM specialists WHERE lower(full_name) NOT IN (${names}));`,
+      `  DELETE FROM specialists WHERE lower(full_name) NOT IN (${names});`,
+    ]),
+    `  RAISE NOTICE 'Listo: copia en tablas ${BACKUP}_* y datos reemplazables borrados. Sigue con la carga.';`,
     `END $$;`,
     ``,
   ].join('\n');
 }
 
-export function buildLoadSql(): string {
+export function buildLoadSql(mode: LoadMode = 'full'): string {
+  const clientCols = ['id', 'name', 'client_type', 'doc_number', 'phone', 'notes'];
+  const projectCols = ['id', 'code', 'client_id', 'business_unit_id', 'area_id', 'name', 'service', 'manager', 'contracted_amount', 'start_date', 'end_date', 'status', 'notes'];
+  const clientsSql = insert('clients', clientCols,
+    XLS_CLIENTS.map((c) => ({ id: c.id, name: c.name, client_type: 'Persona', doc_number: c.doc, phone: c.phone, notes: c.institution })));
+  const projectsSql = insert('projects', projectCols,
+    XLS_PROJECTS.map((p) => ({
+      id: p.id, code: p.code, client_id: p.clientId, business_unit_id: unit(p.unitCode), area_id: area(p.areaCode), name: p.name,
+      service: p.service, manager: p.manager, contracted_amount: p.contracted, start_date: p.start, end_date: p.end, status: p.status, notes: p.notes,
+    })));
+  const projectGuard = XLS_PROJECTS.map((p) => `(${p.id}, ${lit(p.code)})`).join(', ');
   const t = datasetTotals();
   const specialists = XLS_SPECIALISTS.map((s) =>
     `INSERT INTO specialists (full_name, specialty, active)\n  SELECT ${lit(s.name)}, ${lit(s.specialty)}, TRUE\n  WHERE NOT EXISTS (SELECT 1 FROM specialists WHERE lower(full_name) = ${lit(s.name.toLowerCase())});\n` +
@@ -102,9 +135,19 @@ export function buildLoadSql(): string {
     ``,
     `DO $$`,
     `BEGIN`,
-    `  IF EXISTS (SELECT 1 FROM movements) OR EXISTS (SELECT 1 FROM projects) OR EXISTS (SELECT 1 FROM clients) THEN`,
-    `    RAISE EXCEPTION 'La base ya tiene datos. Corre primero excel-01-respaldo-y-limpieza.sql (o el Excel ya se cargó).';`,
-    `  END IF;`,
+    ...(mode === 'update' ? [
+      `  IF EXISTS (SELECT 1 FROM movements) THEN`,
+      `    RAISE EXCEPTION 'Todavía hay movimientos. Corre primero el paso 1 (respaldo y limpieza).';`,
+      `  END IF;`,
+      `  -- Un proyecto creado en la web con el mismo número pero otro código sería pisado: mejor detenerse y avisar.`,
+      `  IF EXISTS (SELECT 1 FROM projects p JOIN (VALUES ${projectGuard}) AS x(id, code) ON x.id = p.id WHERE coalesce(p.code, '') <> x.code) THEN`,
+      `    RAISE EXCEPTION 'Hay proyectos creados en la web que chocan con los del Excel (mismo id, otro código). No se cambió nada: avisa para revisarlos.';`,
+      `  END IF;`,
+    ] : [
+      `  IF EXISTS (SELECT 1 FROM movements) OR EXISTS (SELECT 1 FROM projects) OR EXISTS (SELECT 1 FROM clients) THEN`,
+      `    RAISE EXCEPTION 'La base ya tiene datos. Corre primero excel-01-respaldo-y-limpieza.sql (o el Excel ya se cargó).';`,
+      `  END IF;`,
+    ]),
     `  IF to_regclass('investments') IS NULL THEN`,
     `    RAISE EXCEPTION 'Falta la migración 20261017000001_investments.sql. Aplícala primero.';`,
     `  END IF;`,
@@ -119,16 +162,11 @@ export function buildLoadSql(): string {
     `-- Especialistas (TABLA_M.O)`,
     specialists,
     ``,
-    `-- Clientes (TABLA_CLIENTES)`,
-    insert('clients', ['id', 'name', 'client_type', 'doc_number', 'phone', 'notes'],
-      XLS_CLIENTS.map((c) => ({ id: c.id, name: c.name, client_type: 'Persona', doc_number: c.doc, phone: c.phone, notes: c.institution }))),
+    `-- Clientes (TABLA_CLIENTES)${mode === 'update' ? ' — se actualizan si ya existen' : ''}`,
+    mode === 'update' ? upsert(clientsSql, clientCols) : clientsSql,
     ``,
-    `-- Proyectos (uno por cliente)`,
-    insert('projects', ['id', 'code', 'client_id', 'business_unit_id', 'area_id', 'name', 'service', 'manager', 'contracted_amount', 'start_date', 'end_date', 'status', 'notes'],
-      XLS_PROJECTS.map((p) => ({
-        id: p.id, code: p.code, client_id: p.clientId, business_unit_id: unit(p.unitCode), area_id: area(p.areaCode), name: p.name,
-        service: p.service, manager: p.manager, contracted_amount: p.contracted, start_date: p.start, end_date: p.end, status: p.status, notes: p.notes,
-      }))),
+    `-- Proyectos (uno por cliente)${mode === 'update' ? ' — se actualizan si ya existen (sus tareas y horas se conservan)' : ''}`,
+    mode === 'update' ? upsert(projectsSql, projectCols) : projectsSql,
     ``,
     `-- Pagos de clientes (TABLA_INGRESOS)`,
     insert('project_payments', ['id', 'project_id', 'amount', 'payment_date', 'payment_method'],
@@ -192,16 +230,16 @@ export function buildVerifySql(): string {
         `SELECT (SELECT value::numeric FROM app_settings WHERE key = 'opening_cash') + coalesce(sum(CASE WHEN record_type IN ('COBRO','APORTE_SOCIO','PRESTAMO_RECIBIDO') THEN amount WHEN record_type IN ('PAGO','RETIRO_SOCIO','PAGO_PRESTAMO') THEN -amount ELSE 0 END), 0) FROM movements WHERE status = 'VALIDADO'`),
       row('Monto contratado (TABLA_CLIENTES)', E.contratado, `SELECT coalesce(sum(contracted_amount), 0) FROM projects`),
       row('Monto pagado por clientes', E.pagadoClientes, `SELECT coalesce(sum(amount), 0) FROM project_payments`),
-      row('Falta cobrar', E.faltaCobrar, `SELECT (SELECT coalesce(sum(contracted_amount), 0) FROM projects) - (SELECT coalesce(sum(amount), 0) FROM project_payments)`),
+      row('Falta cobrar (contratado − pagado)', E.faltaCobrar, `SELECT (SELECT coalesce(sum(contracted_amount), 0) FROM projects) - (SELECT coalesce(sum(amount), 0) FROM project_payments)`),
       row('Nada antes de 2026 (la empresa empezó este año)', 0, `SELECT count(*) FROM movements WHERE movement_date < '2026-01-01'`),
       row('Mano de obra: monto requerido (TABLA_M.O)', E.manoObraRequerido, `SELECT coalesce(sum(agreed_amount), 0) FROM labor_contracts WHERE active`),
       row('Mano de obra: monto pagado', E.manoObraPagado,
         `SELECT coalesce(sum(m.amount), 0) FROM movements m WHERE m.status = 'VALIDADO' AND m.record_type = 'COSTO_RECONOCIDO' AND m.notes LIKE '%Mano de obra CMO-%' AND EXISTS (SELECT 1 FROM movements p WHERE p.record_type = 'PAGO' AND p.status = 'VALIDADO' AND p.notes = 'Contrapartida de ' || m.movement_code)`),
       row('Mano de obra: falta pagar', E.manoObraFalta,
         `SELECT (SELECT coalesce(sum(agreed_amount), 0) FROM labor_contracts WHERE active) - (SELECT coalesce(sum(m.amount), 0) FROM movements m WHERE m.status = 'VALIDADO' AND m.record_type = 'COSTO_RECONOCIDO' AND m.notes LIKE '%Mano de obra CMO-%' AND EXISTS (SELECT 1 FROM movements p WHERE p.record_type = 'PAGO' AND p.status = 'VALIDADO' AND p.notes = 'Contrapartida de ' || m.movement_code))`),
-      row('Servicios y publicidad (TABLA_SERVICIOS Y PUBLICIDAD)', E.serviciosPublicidad,
+      row('Servicios y publicidad (según TABLA_EGRESOS)', E.serviciosPublicidad,
         sum(`record_type = 'COSTO_RECONOCIDO' AND cost_category_id IN (SELECT id FROM cost_categories WHERE code IN ('SERV', 'PUB'))`)),
-      row('Herramientas digitales (TABLA_HERRAMIENTAS)', E.herramientas,
+      row('Herramientas digitales (según TABLA_EGRESOS)', E.herramientas,
         sum(`record_type = 'COSTO_RECONOCIDO' AND cost_category_id = (SELECT id FROM cost_categories WHERE code = 'SOFT')`)),
       row('Resultado (ingresos − egresos)', r2(E.ingresos - E.egresos), `SELECT (${sum(`record_type = 'INGRESO_RECONOCIDO'`)}) - (${sum(`record_type = 'COSTO_RECONOCIDO'`)})`),
     ].join('\n  UNION ALL\n'),

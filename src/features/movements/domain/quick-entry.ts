@@ -39,7 +39,7 @@ export interface QuickCatalogs {
   projects: ProjectRow[];
 }
 
-export const PAYMENT_METHODS = ['YAPE', 'PLIN', 'BBVA', 'BCP', 'EFECTIVO', 'TRANSFERENCIA', 'TARJETA'] as const;
+export const PAYMENT_METHODS = ['YAPE', 'PLIN', 'BBVA', 'BCP', 'SIP', 'EFECTIVO', 'TRANSFERENCIA', 'TARJETA'] as const;
 
 // ─── Sugerencia de categoría por palabras del concepto ───────────────────────
 const KEYWORDS: [string, string[]][] = [

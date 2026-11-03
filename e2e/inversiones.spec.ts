@@ -6,11 +6,11 @@ test.describe('Inversiones', () => {
 
   test('muestra el aporte real del socio y su rendimiento', async ({ page }) => {
     await go(page, 'Inversiones');
-    await expect(page.getByTestId('inv-headline')).toContainText('Por cada S/ 1 que pusieron los socios, la empresa ganó S/ 0.27');
+    await expect(page.getByTestId('inv-headline')).toContainText('Por cada S/ 1 que pusieron los socios, la empresa perdió S/ 0.63');
     await expect(page.getByTestId('inv-kpis')).toContainText('S/ 1,500.00');
-    await expect(page.getByTestId('inv-kpis')).toContainText('26.68 %');
+    await expect(page.getByTestId('inv-kpis')).toContainText('-62.81 %');
     await expect(page.getByTestId('inv-investors')).toContainText('HANS CARLOS TORRES MURRIETA');
-    await expect(page.getByTestId('inv-value-today')).toHaveText('S/ 1,900.27');
+    await expect(page.getByTestId('inv-value-today')).toHaveText('S/ 557.90');
     await noHorizontalScroll(page);
   });
 
@@ -35,8 +35,8 @@ test.describe('Inversiones', () => {
     await form.getByRole('button', { name: 'Guardar pago' }).click();
     await expect(page.getByTestId('inv-outstanding')).toHaveText('S/ 1,105.38');
 
-    // Caja: 1,900.27 + 1,200 (préstamo) − 94.62 (capital) − 12 (intereses) = 2,993.65
+    // Caja: 557.90 + 1,200 (préstamo) − 94.62 (capital) − 12 (intereses) = 1,651.28
     await go(page, 'Resultados y caja');
-    await expect(page.getByTestId('summary-cash')).toHaveText('S/ 2,993.65');
+    await expect(page.getByTestId('summary-cash')).toHaveText('S/ 1,651.28');
   });
 });
