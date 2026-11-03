@@ -14,7 +14,7 @@ describe('servicios y marketing', () => {
   it('teléfono + publicidad = filas de TABLA_EGRESOS de esos grupos', () => {
     const r = buildRecurringReport(movs, catCode, ['servicios', 'marketing']);
     expect(r.groupTotals.servicios).toBe(119.7);            // Bitel × 3
-    expect(r.groupTotals.marketing).toBe(326.4);            // Publicidad FB 250.06 + 76.34
+    expect(r.groupTotals.marketing).toBe(605.26);           // Publicidad FB 250.06 + 76.34 + 71.32 + 70.58 + 136.96
     expect(r.total).toBe(EXCEL_TOTALES.serviciosPublicidad);   // hoja SERVICIOS Y PUBLICIDAD (corregida)
     const bitel = r.services.find((s) => s.key === 'BITEL');
     expect(bitel).toMatchObject({ recurring: true, lastAmount: 39.9, change: 0, nextDate: '2026-11-14' });

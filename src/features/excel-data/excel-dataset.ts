@@ -10,10 +10,10 @@ import { EXCEL_CLIENTES, EXCEL_EGRESOS, EXCEL_INGRESOS, EXCEL_INVERSIONES, EXCEL
 export type XlsRecordType = 'INGRESO_RECONOCIDO' | 'COSTO_RECONOCIDO' | 'COBRO' | 'PAGO' | 'APORTE_SOCIO';
 export type XlsClass = 'DIRECTO' | 'ATRIBUIBLE' | 'COMPARTIDO' | 'NO_APLICA';
 
-export interface XlsClient { id: number; name: string; doc: string | null; phone: string | null; institution: string; row: number }
+export interface XlsClient { id: number; name: string; doc: string | null; phone: string | null; institution: string | null; row: number }
 export interface XlsProject {
   id: number; code: string; clientId: number; unitCode: string; areaCode: string; name: string; service: string;
-  manager: string; start: string; end: string; contracted: number; status: 'activo' | 'finalizado'; notes: string;
+  manager: string; start: string | null; end: string | null; contracted: number; status: 'activo' | 'finalizado'; notes: string;
 }
 export interface XlsPayment { id: number; projectId: number; amount: number; date: string; method: string }
 export interface XlsSpecialist { id: number; name: string; specialty: string }
@@ -24,7 +24,7 @@ export interface XlsMovement {
 }
 export interface XlsLaborContract {
   id: number; code: string; specialistId: number; name: string; doc: string; unitCode: string; areaCode: string;
-  projectId: number | null; clientLabel: string; service: string; description: string; type: 'POR_PROYECTO' | 'MENSUAL';
+  projectId: number | null; clientLabel: string; service: string; description: string | null; type: 'POR_PROYECTO' | 'MENSUAL';
   start: string; end: string; agreed: number; excelPaid: number; excelPending: number; row: number;
 }
 export interface XlsInvestment {
@@ -49,10 +49,14 @@ function clientIdFor(name: string, doc: string | null): number {
   return byName.id;
 }
 
-const TODAY = '2026-10-16';
-const byStart = [...EXCEL_CLIENTES].map((c, i) => ({ c, clientId: i + 1 })).sort((a, b) => a.c.start.localeCompare(b.c.start) || a.clientId - b.clientId);
+const TODAY = '2026-11-02';
+/** Fecha de inicio: la del Excel; si no tiene (clientes nuevos), la de su primer pago; si no pagó aún, sin fecha. */
+const startOf = (c: (typeof EXCEL_CLIENTES)[number]): string | null =>
+  c.start ?? EXCEL_INGRESOS.filter((r) => r.doc && r.doc === c.doc).map((r) => r.date).sort()[0] ?? null;
+const byStart = [...EXCEL_CLIENTES].map((c, i) => ({ c, clientId: i + 1, start: startOf(c) }))
+  .sort((a, b) => (a.start ?? '9999').localeCompare(b.start ?? '9999') || a.clientId - b.clientId);
 
-export const XLS_PROJECTS: XlsProject[] = byStart.map(({ c, clientId }, i) => ({
+export const XLS_PROJECTS: XlsProject[] = byStart.map(({ c, clientId, start }, i) => ({
   id: i + 1,
   code: `PRY-2026-${String(i + 1).padStart(3, '0')}`,
   clientId,
@@ -61,12 +65,12 @@ export const XLS_PROJECTS: XlsProject[] = byStart.map(({ c, clientId }, i) => ({
   name: `${c.service} – ${c.name}`,
   service: c.service,
   manager: 'HENRY TORRES RIVERA',
-  start: c.start,
+  start,
   end: c.end,
   contracted: c.contracted,
   // Terminado y pagado completo → finalizado; el resto sigue activo.
-  status: c.pending === 0 && c.end < TODAY ? 'finalizado' : 'activo',
-  notes: `${c.institution} · Excel TABLA_CLIENTES fila ${c.row}`,
+  status: c.pending === 0 && c.end !== null && c.end < TODAY ? 'finalizado' : 'activo',
+  notes: [c.institution, c.stage ? `Etapa: ${c.stage}` : null, `Excel TABLA_CLIENTES fila ${c.row}`].filter(Boolean).join(' · '),
 }));
 
 const projectOfClient = (clientId: number) => XLS_PROJECTS.find((p) => p.clientId === clientId) as XlsProject;
@@ -93,7 +97,8 @@ function projectOfLaborClient(client: string): number | null {
 }
 
 export const XLS_LABOR_CONTRACTS: XlsLaborContract[] = EXCEL_MANO_OBRA.map((m, i) => {
-  const isCompany = m.unit === 'GENERAL' || m.unit === 'MARKETING DIGITAL'; // se pagan como gasto de toda la empresa
+  // GENERAL, MARKETING DIGITAL o sin unidad (Jeferson) → se pagan como gasto de toda la empresa.
+  const isCompany = !m.unit || m.unit === 'GENERAL' || m.unit === 'MARKETING DIGITAL';
   return {
     id: i + 1,
     code: `CMO-2026-${String(i + 1).padStart(3, '0')}`,
@@ -123,11 +128,14 @@ function specialistIn(spec: string): string | null {
   if (s.includes('TEDDY')) return 'TEDDY GARCIA MURRIETA';      // antes que EDDY: "TEDDY" contiene "EDDY"
   if (s.includes('EDDY')) return 'EDDY RENATO VIVANCO NÚÑEZ';
   if (s.includes('JHIMMY')) return 'JHIMMY CORTÉZ RUIZ';
-  if (s.includes('ALANIS')) return 'ALANIS PARDAVÉ';
+  if (s.includes('ALANIS')) return 'ALANIS BERAÚN PARDAVÉ';
   if (s.includes('(HENRY)')) return 'HENRY TORRES RIVERA';
   if (s.includes('ASESORAMIENTO DE INVESTIGACION')) return 'MANUEL ENRIQUE PANDURO RENGIFO';
   return null;
 }
+
+/** Egresos sin nombre en el texto, identificados por la fórmula de TABLA_M.O (Henry: I27 + I43 + I57). */
+const SPECIALIST_BY_ROW: Record<number, string> = { 57: 'HENRY TORRES RIVERA' };
 
 /** Proyecto al que corresponde un pago a especialista (según TABLA_M.O: a quién asesora). */
 function projectForExpense(spec: string): number | null {
@@ -143,8 +151,14 @@ function categoryFor(group: string, product: string, spec: string): string {
   const g = norm(group), p = norm(product), s = norm(spec);
   if (g === 'HERRAMIENTAS DIGITALES') return 'SOFT';
   if (g === 'SERVICIO TELEFONICO') return 'SERV';
-  if (g === 'SERVICIOS DE INVESTIGACION') return 'MO';
-  if (g === 'MARKETING DIGITAL') return p.startsWith('PUBLICIDAD') ? 'PUB' : 'MO';
+  // Pagos a especialistas = mano de obra; otros servicios de investigación (p. ej. informe Turnitin) = terceros.
+  if (g === 'SERVICIOS DE INVESTIGACION') return p === 'ESPECIALISTA' ? 'MO' : 'TERC';
+  if (g === 'MARKETING DIGITAL') {
+    if (p.startsWith('PUBLICIDAD')) return 'PUB';
+    if (p.startsWith('MICROFONO') || s.includes('MICROFONO')) return 'MAQ';   // equipo (micrófono Hollyland)
+    return 'MO';
+  }
+  if (g.startsWith('MANTENIMIENTO DEL BBVA') || p === 'BBVA') return 'BAN';   // mantenimiento que cobra el banco
   if (g === 'TRANSPORTES Y TRAMITES') return p === 'TRANSPORTE' || s.includes('TRANSPORTE') ? 'MOV' : 'ADM';
   if (g === 'HERRAMIENTA') return 'MAT';
   return 'OTR'; // REUNIONES EJECUTIVAS
@@ -180,7 +194,7 @@ const LABOR_LINK = new Map<number, string>();
   const ordered = [...EXCEL_EGRESOS].sort((a, b) => a.date.localeCompare(b.date) || a.row - b.row);
   for (const r of ordered) {
     if (categoryFor(r.group, r.product, r.spec) !== 'MO') continue;
-    const who = specialistIn(r.spec);
+    const who = SPECIALIST_BY_ROW[r.row] ?? specialistIn(r.spec);
     const contract = who ? XLS_LABOR_CONTRACTS.find((c) => norm(c.name) === norm(who)) : undefined;
     if (!contract) continue;
     const total = r2((used.get(contract.code) ?? 0) + r.amount);
@@ -193,8 +207,10 @@ const LABOR_LINK = new Map<number, string>();
 for (const [i, r] of EXCEL_EGRESOS.entries()) {
   const isCorp = r.unit === 'GENERAL';
   const category = categoryFor(r.group, r.product, r.spec);
-  const projectId = isCorp ? null : projectForExpense(r.spec);
-  const specialist = category === 'MO' ? specialistIn(r.spec) : null;
+  const linked = LABOR_LINK.get(r.row);
+  const contractProject = linked ? XLS_LABOR_CONTRACTS.find((c) => c.code === linked)?.projectId ?? null : null;
+  const projectId = isCorp ? null : projectForExpense(r.spec) ?? contractProject;
+  const specialist = category === 'MO' ? SPECIALIST_BY_ROW[r.row] ?? specialistIn(r.spec) : null;
   const detail = category === 'MO' ? r.spec : `${r.product.charAt(0)}${r.product.slice(1).toLowerCase()}`;
   events.push({
     date: r.date, order: 200 + i,

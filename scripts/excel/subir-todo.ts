@@ -65,3 +65,29 @@ export function buildSubirTodo(root: string, parts: { clean: string; load: strin
     block('PASO 4 · VERIFICACIÓN (16 filas OK)', parts.verify),
   ].join('\n');
 }
+
+/** Solo datos (la base ya tiene el esquema y las cuentas): respaldo + limpieza + carga del Excel + verificación.
+ *  No toca usuarios, contraseñas ni catálogos. Una sola línea para cambiar ('SI'). */
+export function buildActualizarExcel(parts: { clean: string; load: string; verify: string }): string {
+  const clean = swap(parts.clean, "v_confirmo TEXT := 'NO';", "v_confirmo TEXT := current_setting('bb.confirmo');", 'excel-01');
+  const block = (title: string, body: string) => `\n-- ############################################################################\n-- ${title}\n-- ############################################################################\n${body.trim()}\n`;
+  return [
+    `-- ==============================================================================`,
+    `-- ACTUALIZAR LA NUBE CON EL EXCEL NUEVO (sistema BLACKBELT) — un solo paso`,
+    `-- Generado por: npm run seed:excel:sql`,
+    `--`,
+    `-- CÓMO USARLO: cambia 'NO' por 'SI' en la línea marcada, copia TODO, pégalo en Supabase → SQL Editor`,
+    `-- → New query → Run. Al final sale una tabla: todas las filas deben decir OK.`,
+    `--`,
+    `-- Hace: copia de respaldo de todo (tablas respaldo_*), reemplaza movimientos, pagos de clientes, inversiones`,
+    `-- y mano de obra por los del Excel, y actualiza clientes y proyectos. CONSERVA horas, tareas, metas,`,
+    `-- usuarios, contraseñas y especialistas. Si algo falla, se detiene y muestra el motivo.`,
+    `-- ==============================================================================`,
+    ``,
+    `SELECT set_config('bb.confirmo', 'NO', false);  -- ← CAMBIA 'NO' POR 'SI'`,
+    ``,
+    block('PASO 1 · RESPALDO Y LIMPIEZA (solo movimientos, pagos, inversiones y mano de obra)', clean),
+    block('PASO 2 · CARGA DEL EXCEL', parts.load),
+    block('PASO 3 · VERIFICACIÓN', parts.verify),
+  ].join('\n');
+}

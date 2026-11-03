@@ -3,7 +3,7 @@
 -- Generado por: npm run seed:excel:sql
 --
 -- Qué hace:
---   1. Copia cada tabla de datos a "respaldo_20261016_<tabla>" (para poder recuperar cualquier cosa).
+--   1. Copia cada tabla de datos a "respaldo_20261102_<tabla>" (para poder recuperar cualquier cosa).
 --   2. Vacía: labor_contracts, work_hours, tasks, sprints, movements, budgets, corp_allocation, project_payments, projects, clients, investments.
 --   3. Quita los especialistas que no están en el Excel (Henry Torres Rivera se queda).
 -- NO toca: usuarios, roles, catálogos (unidades, áreas, categorías) ni la configuración.
@@ -29,9 +29,9 @@ BEGIN
 
   -- transactions (esquema anterior) se respalda porque al borrar proyectos su enlace quedaría vacío.
   FOREACH t IN ARRAY ARRAY['labor_contracts', 'work_hours', 'tasks', 'sprints', 'movements', 'budgets', 'corp_allocation', 'project_payments', 'projects', 'clients', 'investments', 'specialists', 'app_settings', 'users', 'transactions'] LOOP
-    IF to_regclass(t) IS NOT NULL AND to_regclass('respaldo_20261016_' || t) IS NULL THEN
-      EXECUTE format('CREATE TABLE %I AS SELECT * FROM %I', 'respaldo_20261016_' || t, t);
-      EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', 'respaldo_20261016_' || t);  -- sin políticas: no se ve desde la app
+    IF to_regclass(t) IS NOT NULL AND to_regclass('respaldo_20261102_' || t) IS NULL THEN
+      EXECUTE format('CREATE TABLE %I AS SELECT * FROM %I', 'respaldo_20261102_' || t, t);
+      EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', 'respaldo_20261102_' || t);  -- sin políticas: no se ve desde la app
     END IF;
   END LOOP;
 
@@ -39,8 +39,10 @@ BEGIN
     IF to_regclass(t) IS NOT NULL THEN EXECUTE format('DELETE FROM %I', t); END IF;
   END LOOP;
 
+  UPDATE specialists SET full_name = 'Alanis Beraún Pardavé' WHERE lower(full_name) = 'alanis pardavé'
+     AND NOT EXISTS (SELECT 1 FROM specialists WHERE lower(full_name) = 'alanis beraún pardavé');
   UPDATE users SET specialist_id = NULL
-   WHERE specialist_id IN (SELECT id FROM specialists WHERE lower(full_name) NOT IN ('henry torres rivera', 'eddy renato vivanco núñez', 'jhimmy cortéz ruiz', 'manuel enrique panduro rengifo', 'teddy garcia murrieta', 'alanis pardavé', 'johann imanol herrera ramos'));
-  DELETE FROM specialists WHERE lower(full_name) NOT IN ('henry torres rivera', 'eddy renato vivanco núñez', 'jhimmy cortéz ruiz', 'manuel enrique panduro rengifo', 'teddy garcia murrieta', 'alanis pardavé', 'johann imanol herrera ramos');
-  RAISE NOTICE 'Listo: copia en tablas respaldo_20261016_* y datos de prueba borrados. Sigue con excel-02-cargar-datos.sql';
+   WHERE specialist_id IN (SELECT id FROM specialists WHERE lower(full_name) NOT IN ('henry torres rivera', 'eddy renato vivanco núñez', 'jhimmy cortéz ruiz', 'manuel enrique panduro rengifo', 'teddy garcia murrieta', 'alanis beraún pardavé', 'johann imanol herrera ramos', 'jeferson rodriguez mallqui'));
+  DELETE FROM specialists WHERE lower(full_name) NOT IN ('henry torres rivera', 'eddy renato vivanco núñez', 'jhimmy cortéz ruiz', 'manuel enrique panduro rengifo', 'teddy garcia murrieta', 'alanis beraún pardavé', 'johann imanol herrera ramos', 'jeferson rodriguez mallqui');
+  RAISE NOTICE 'Listo: copia en tablas respaldo_20261102_* y datos reemplazables borrados. Sigue con la carga.';
 END $$;

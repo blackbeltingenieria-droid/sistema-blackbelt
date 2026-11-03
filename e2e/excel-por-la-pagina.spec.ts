@@ -11,21 +11,25 @@ test.use({ baseURL: 'http://127.0.0.1:5175' });
 const CATEGORY_CHIP: Record<string, string> = {
   SOFT: 'Software y apps', SERV: 'Servicios (luz, internet, celular)', MO: 'Especialistas y personal', PUB: 'Publicidad',
   MOV: 'Transporte y viáticos', ADM: 'Trámites', MAT: 'Materiales', OTR: 'Otros',
+  MAQ: 'Equipos', BAN: 'Comisiones del banco', TERC: 'Servicios de terceros',
 };
 function categoryOf(group: string, product: string, spec: string): string {
   const g = group.normalize('NFD').replace(/[̀-ͯ]/g, '');
   if (g === 'HERRAMIENTAS DIGITALES') return 'SOFT';
   if (g === 'SERVICIO TELEFONICO') return 'SERV';
-  if (g === 'SERVICIOS DE INVESTIGACION') return 'MO';
-  if (g === 'MARKETING DIGITAL') return product.startsWith('PUBLICIDAD') ? 'PUB' : 'MO';
+  const p = product.normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (g === 'SERVICIOS DE INVESTIGACION') return p === 'ESPECIALISTA' ? 'MO' : 'TERC';
+  if (g === 'MARKETING DIGITAL') return p.startsWith('PUBLICIDAD') ? 'PUB' : p.startsWith('MICROFONO') ? 'MAQ' : 'MO';
+  if (g.startsWith('MANTENIMIENTO DEL BBVA') || p === 'BBVA') return 'BAN';
   if (g === 'TRANSPORTES Y TRAMITES') return product === 'TRANSPORTE' || /transporte/i.test(spec) ? 'MOV' : 'ADM';
   if (g === 'HERRAMIENTA') return 'MAT';
   return 'OTR';
 }
 const clientOfIncome = (r: (typeof EXCEL_INGRESOS)[number]) =>
   EXCEL_CLIENTES.find((c) => (r.doc && c.doc === r.doc) || c.name.startsWith(r.client.split(' ')[0])) as (typeof EXCEL_CLIENTES)[number];
-/** Colaborador al que se le paga en un egreso (como en TABLA_M.O). TEDDY antes que EDDY. */
-const workerOfExpense = (spec: string): string | null => {
+/** Colaborador al que se le paga en un egreso (como en TABLA_M.O). TEDDY antes que EDDY. Fila 57 = Henry (fórmula de M.O). */
+const workerOfExpense = (spec: string, row: number): string | null => {
+  if (row === 57) return 'HENRY';
   const s = spec.toUpperCase();
   return s.includes('TEDDY') ? 'TEDDY' : s.includes('EDDY') ? 'EDDY' : s.includes('JHIMMY') ? 'JHIMMY' : s.includes('ALANIS') ? 'ALANIS'
     : s.includes('(HENRY)') ? 'HENRY' : s.includes('ASESORAMIENTO DE INVESTIGACION') ? 'MANUEL' : null;
@@ -52,13 +56,13 @@ test('el Excel cargado a mano por la página cuadra con el Excel', async ({ page
     const dlg = page.getByRole('dialog');
     await dlg.getByRole('button', { name: '+ Nuevo cliente' }).click();
     await dlg.locator('input[name="newClientName"]').fill(c.name);
-    if (c.doc) await dlg.locator('input[name="newClientDocNumber"]').fill(c.doc);
+    if (c.doc) await dlg.locator('input[name="newClientDocNumber"]').fill(c.doc.trim());
     if (c.phone) await dlg.locator('input[name="newClientPhone"]').fill(c.phone);
     await dlg.locator('input[name="service"]').fill(c.service);
     await selectOptionContaining(page, 'select[name="businessUnitId"]', 'UN03');
     await dlg.locator('input[name="contractedAmount"]').fill(String(c.contracted));
-    await dlg.locator('input[name="startDate"]').fill(c.start);
-    await dlg.locator('input[name="endDate"]').fill(c.end);
+    if (c.start) await dlg.locator('input[name="startDate"]').fill(c.start);   // clientes nuevos sin fechas: se deja la de hoy
+    if (c.end) await dlg.locator('input[name="endDate"]').fill(c.end);
     await dlg.getByRole('button', { name: 'Crear proyecto' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 8000 });
   }
@@ -110,15 +114,17 @@ test('el Excel cargado a mano por la página cuadra con el Excel', async ({ page
     await dlg.getByLabel('Monto (S/)').fill(String(r.amount));
     await dlg.getByLabel('Fecha').fill(r.date);
     await dlg.getByRole('button', { name: r.method, exact: true }).click();
-    const who = categoryOf(r.group, r.product, r.spec) === 'MO' ? workerOfExpense(r.spec) : null;
+    const who = categoryOf(r.group, r.product, r.spec) === 'MO' ? workerOfExpense(r.spec, r.row) : null;
     const contract = who ? EXCEL_MANO_OBRA.find((m) => m.name.startsWith(who)) : undefined;
+    let linkedClient: string | null = null;
     if (contract && (linkedSoFar.get(contract.name) ?? 0) + r.amount <= contract.required + 0.001) {
+      linkedClient = /WILMER/.test(contract.client) ? EXCEL_CLIENTES[0].name : /TANIA/.test(contract.client) ? EXCEL_CLIENTES[2].name : null;
       linkedSoFar.set(contract.name, (linkedSoFar.get(contract.name) ?? 0) + r.amount);
       await selectOptionContaining(page, '#q-labor', contract.name);
     }
     await dlg.getByTestId('quick-more').click();
     await dlg.getByRole('button', { name: r.unit === 'GENERAL' ? 'Toda la empresa' : /Solo Investigación y Desarrollo/ }).click();
-    const projectClient = r.unit === 'GENERAL' ? null : projectClientOfExpense(r.spec);
+    const projectClient = r.unit === 'GENERAL' ? null : projectClientOfExpense(r.spec) ?? linkedClient;
     if (projectClient) await selectOptionContaining(page, '#q-project', projectClient);
     await dlg.getByRole('button', { name: CATEGORY_CHIP[categoryOf(r.group, r.product, r.spec)], exact: true }).click();
     await dlg.getByRole('button', { name: 'Guardar' }).click();
@@ -154,7 +160,7 @@ test('el Excel cargado a mano por la página cuadra con el Excel', async ({ page
 
   await go(page, 'Inversiones');
   await expect(page.getByTestId('inv-kpis')).toContainText(fmt(EXCEL_TOTALES.inversion));
-  await expect(page.getByTestId('inv-kpis')).toContainText('26.68 %');
+  await expect(page.getByTestId('inv-kpis')).toContainText('-62.81 %');
 
   await go(page, 'Ingresos y egresos');
   await page.locator('#f-month').selectOption('');
@@ -171,11 +177,12 @@ test('el Excel cargado a mano por la página cuadra con el Excel', async ({ page
   await expect(page.getByTestId('summary-cash')).toHaveText(fmt(EXCEL_TOTALES.fondoEnCaja));
   await page.getByTestId('period-month').click();
   await page.locator('#rc-month').selectOption('2026-10');
-  await expect(page.getByTestId('summary-income')).toHaveText(fmt(4440));
+  await expect(page.getByTestId('summary-income')).toHaveText(fmt(4540));
+  await page.locator('#rc-month').selectOption('2026-11');
   const since = page.getByTestId('summary-since-start');
   await expect(since).toContainText(fmt(EXCEL_TOTALES.ingresos));
   await expect(since).toContainText(fmt(EXCEL_TOTALES.egresos));
-  await expect(since).toContainText(fmt(EXCEL_TOTALES.ingresos - EXCEL_TOTALES.egresos));
+  await expect(since).toContainText(`perdiste ${fmt(Math.abs(EXCEL_TOTALES.ingresos - EXCEL_TOTALES.egresos))}`);
   await expect(page.getByText(`Te deben ${fmt(EXCEL_TOTALES.faltaCobrar)}`)).toBeVisible();
 
   const per = (from: number, to: number, n: number) => ((to - from) / 1000 / n).toFixed(1);
