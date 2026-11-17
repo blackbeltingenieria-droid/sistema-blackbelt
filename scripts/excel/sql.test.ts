@@ -15,9 +15,16 @@ describe('SQL del Excel para la nube', () => {
     expect(s).toContain('COMMIT;');
     expect(s).toContain('La base ya tiene datos');
     expect(s).toContain("(SELECT id FROM business_units WHERE code = 'UN03')");
-    expect((s.match(/'VALIDADO', /g) ?? []).length).toBe(114);
+    expect((s.match(/'VALIDADO', /g) ?? []).length).toBe(165);
   });
-  it('la verificación compara 16 cifras con el Excel', () => {
-    expect((buildVerifySql().match(/AS concepto/g) ?? []).length).toBe(16);
+  it('la verificación compara 18 cifras con el Excel', () => {
+    expect((buildVerifySql().match(/AS concepto/g) ?? []).length).toBe(18);
+    expect((buildVerifySql('update').match(/AS concepto/g) ?? []).length).toBe(19);   // + anotados solo en la web
+  });
+  it('REVISAR-NUBE es solo lectura', async () => {
+    const { buildDiagnosticSql } = await import('./sql');
+    const body = buildDiagnosticSql().split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
+    expect(body).not.toMatch(/\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT)\b/i);
+    expect(body.trim().startsWith('WITH')).toBe(true);
   });
 });

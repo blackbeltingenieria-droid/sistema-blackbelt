@@ -29,3 +29,10 @@ dist-ssr
 !.env.demo
 !.env.vacio
 !.env.login
+
+# Respaldos de credenciales y volcados de base de datos (feature/pucallpa-local)
+*.backup
+*.dump
+supabase/prod_*.sql
+supabase/*data*.sql
+supabase/.temp

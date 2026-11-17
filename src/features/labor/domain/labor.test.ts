@@ -9,7 +9,7 @@ const code = (id: number) => SEED_BUSINESS_UNITS.find((u) => u.id === id)?.code 
 const movs = EXCEL_DB_MOVEMENTS.map((m) => enrichMovement(m, code(m.business_unit_id)));
 
 describe('mano de obra (TABLA_M.O)', () => {
-  const r = buildLaborReport(EXCEL_DB_LABOR_CONTRACTS, movs, '2026-10-16');
+  const r = buildLaborReport(EXCEL_DB_LABOR_CONTRACTS, movs, '2026-11-12');
 
   it('cuadra con el Excel: requerido, pagado y falta (TABLA_M.O C8, C6, C4)', () => {
     expect(r.totals.agreed).toBe(EXCEL_TOTALES.manoObraRequerido);
@@ -25,15 +25,16 @@ describe('mano de obra (TABLA_M.O)', () => {
     }
   });
 
-  it('fechas de pago y estado: Alanis vencido; Teddy y Henry vencen el 18/10; Johann pendiente', () => {
+  it('al 12/11: Teddy, Henry y Johann con saldo vencido; Alanis y Jeferson ya cobraron todo', () => {
     const by = (n: string) => r.rows.find((x) => x.contract.worker_name.startsWith(n));
-    expect(by('ALANIS')?.status).toBe('vencido');
-    expect(by('TEDDY')?.status).toBe('por_vencer');
-    expect(by('HENRY')?.daysLeft).toBe(2);
-    expect(by('JOHANN')?.status).toBe('pendiente');
+    expect(by('ALANIS')?.status).toBe('pagado');
+    expect(by('JEFERSON')?.status).toBe('pagado');     // TABLA_EGRESOS fila 72 (S/ 130)
+    expect(by('TEDDY')?.status).toBe('vencido');
+    expect(by('HENRY')?.daysLeft).toBe(-25);
+    expect(by('JOHANN')?.payments.map((p) => [p.date, p.amount])).toEqual([['2026-11-08', 700]]);
     expect(by('EDDY')?.payments.map((p) => [p.date, p.amount])).toEqual([['2026-09-15', 200], ['2026-10-15', 1300]]);
     expect(r.rows[0].status).toBe('vencido');   // lo más urgente primero
-    expect(r.phrases[0]).toContain('S/ 2,249.30');   // TABLA_M.O C4
+    expect(r.phrases[0]).toContain('S/ 859.30');   // TABLA_M.O C4 (989.30) − 130 ya pagados a Jeferson
   });
 
   it('enlace en notas', () => {

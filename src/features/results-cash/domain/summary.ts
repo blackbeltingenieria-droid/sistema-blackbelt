@@ -20,7 +20,8 @@ export interface BusinessSummary {
   sinceStart: { income: number; spent: number; result: number }; // acumulado desde el inicio hasta este mes
   /** Si se cobra todo lo que deben los clientes y se paga todo lo que se debe al equipo (como Hoja1 del Excel). */
   projected: { receivable: number; laborPending: number; result: number } | null;
-  payable: number;         // debes: gastos anotados sin pagar + lo que falta pagar al equipo (Mano de obra)
+  payable: number;         // debes: gastos anotados sin pagar + lo que falta pagar al equipo (Mano de obra) + préstamos por devolver
+  loans: number;           // de lo que debes: préstamos recibidos − capital devuelto (no es gasto: solo sale de caja al devolverlo)
   reasons: string[];       // por qué, en 2–4 frases
   topExpenses: CategoryBar[];
   trend: MonthlyPoint[];
@@ -57,10 +58,12 @@ export function buildBusinessSummary(input: {
   const balances = pendingBalances(movements, mes);
   const receivable = input.projectsReceivable ?? balances.receivable;
   // Lo que falta pagar al equipo que todavía no se anotó como egreso (el resto ya está en balances.payable).
+  // Los préstamos por devolver también se deben, pero devolverlos no es gasto: no cambian la ganancia proyectada.
   const laborNotRegistered = r2(Math.max(0, (input.laborPending ?? 0) - (input.laborOwedRegistered ?? 0)));
-  const payable = r2(balances.payable + laborNotRegistered);
   const upTo = movements.filter((m) => isEligible(m) && m.mes <= mes);
   const sumType = (t: string) => r2(upTo.filter((m) => m.record_type === t).reduce((a, m) => a + m.amount, 0));
+  const loans = r2(Math.max(0, sumType(RECORD_TYPE.PRESTAMO_RECIBIDO) - sumType(RECORD_TYPE.PAGO_PRESTAMO)));
+  const payable = r2(balances.payable + laborNotRegistered + loans);
   const startIncome = sumType(RECORD_TYPE.INGRESO_RECONOCIDO);
   const startSpent = sumType(RECORD_TYPE.COSTO_RECONOCIDO);
   const sinceStart = { income: startIncome, spent: startSpent, result: r2(startIncome - startSpent) };
@@ -90,5 +93,5 @@ export function buildBusinessSummary(input: {
   const projected = input.projectsReceivable !== undefined || input.laborPending
     ? { receivable, laborPending: input.laborPending ?? 0, result: r2(sinceStart.result + receivable - laborNotRegistered) }
     : null;
-  return { verdict, result, income, spent, cash: cash.closingBalance, receivable, payable, sinceStart, projected, reasons: reasons.slice(0, 4), topExpenses, trend: evolution };
+  return { verdict, result, income, spent, cash: cash.closingBalance, receivable, payable, loans, sinceStart, projected, reasons: reasons.slice(0, 4), topExpenses, trend: evolution };
 }

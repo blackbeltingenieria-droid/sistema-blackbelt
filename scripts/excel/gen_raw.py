@@ -32,10 +32,13 @@ for r in range(7, ws.max_row+1):
     g=lambda c: ws.cell(r,c).value
     if g(2) is None: continue
     inv.append(dict(row=r, name=txt(g(2)), doc=doc(g(3)), spec=txt(g(4)), date=d(g(5)), amount=num(g(6)), method=txt(g(7)).upper()))
-cli=[]; ws=wb['TABLA_CLIENTES']
+cli=[]; dup=[]; ws=wb['TABLA_CLIENTES']
 for r in range(10, ws.max_row+1):
     g=lambda c: ws.cell(r,c).value
     if g(2) is None: continue
+    if str(g(2)).strip().isdigit(): continue          # números de cuenta anotados debajo de la tabla (filas 39–44), no son clientes
+    if doc(g(3)) and any(c['doc'] == doc(g(3)) for c in cli):   # mismo DNI otra vez = registro duplicado (Gerencia 12/11: Diana, fila 21)
+        dup.append(dict(row=r, name=txt(g(2)), doc=doc(g(3)), contracted=num(g(11)))); continue
     extra = txt(g(14))
     service = txt(g(7)) or extra or 'POR DEFINIR'
     contracted = num(g(11)); paid = num(g(12))
@@ -55,13 +58,19 @@ for x in eg:
     if x['row'] == 42:                                            # 12.13 = comisión del banco (transferencia a Eddy)
         x.update(group='COMISION DEL BANCO', product='BBVA', area='GENERAL', unit='GENERAL',
                  spec='Comisión del banco por la transferencia al especialista de ing. mecánica (Eddy)')
+for x in eg:                                                       # validación de expertos = costo de proyectos de investigación (Gerencia 12/11)
+    if norm0(x['group']) == 'DINERO EFECTIVO' and 'VALIDACION DE EXPERTOS' in norm0(x['spec']):
+        x.update(area='INVESTIGACION Y DESARROLLO', unit='INVESTIGACION Y DESARROLLO')
 for x in cli:
     if norm0(x['name']).startswith('JACKELINE'):                  # contrato 1,000; aún no paga nada
         x['contracted'] = 1000.0; x['pending'] = round(1000.0 - x['paid'], 2)
 for x in mo:
     if norm0(x['name']).startswith('JEFERSON'):                   # asistente; monto referencial
         x.update(area='GENERAL', unit='GENERAL', service='ASISTENTE',
-                 spec='Asistente de la empresa. Prestación de servicios (recibo por honorarios, no planilla); trabaja en sus tiempos. Monto referencial: por definir.')
+                 spec='Asistente de la empresa. Prestación de servicios (recibo por honorarios, no planilla); trabaja en sus tiempos.')
+        # TABLA_EGRESOS fila 72 (08/11/2026, BBVA) ya le pagó S/ 130 («Pago aa Jeferson Rodriguez»); la hoja M.O aún dice 0.
+        if any(e['row'] == 72 and e['amount'] == x['required'] and 'JEFERSON' in norm0(e['spec']) for e in eg):
+            x['paid'] = x['required']; x['pending'] = 0.0
 r2 = lambda x: round(x + 1e-9, 2)
 tot = dict(
   ingresos=r2(sum(x['amount'] for x in ing)), egresos=r2(sum(x['amount'] for x in eg)), inversion=r2(sum(x['amount'] for x in inv)),
@@ -82,17 +91,24 @@ xl = {  # lo que dicen las celdas del Excel (para el reporte de auditoría)
 print(json.dumps({'tot': tot, 'xl': xl}, ensure_ascii=False, default=str))
 L = []
 L.append('// features/excel-data/excel-raw.ts')
-L.append('// Filas del Excel «CUADRO DE COSTOS - PRIMER MODELO» (hojas TABLA_*), versión actualizada por Gerencia (02/11/2026).')
-L.append('// Generado con /tmp/claude-0/scripts/gen_raw.py — NO editar a mano. Correcciones al leer:')
+L.append('// Filas del Excel «CUADRO DE COSTOS - PRIMER MODELO» (hojas TABLA_*), versión actualizada por Gerencia (12/11/2026).')
+L.append('// Generado con scripts/excel/gen_raw.py — NO editar a mano. Correcciones al leer:')
 L.append('//  - 15/10/2025 → 15/10/2026 (la empresa empezó en 2026); "15/010/2026" → 2026-10-15; "09/092026" → 2026-09-09.')
 L.append('//  - TABLA_CLIENTES: falta pagar = contratado − pagado ')
 L.append('//  - Decisiones de Gerencia 03/11: Jackeline contrato 1,000; Bitel 14/10 por YAPE; fila 42 (12.13) = comisión del banco; Jeferson asistente (monto referencial).')
+L.append('//  - 12/11: Jeferson ya cobró S/ 130 (TABLA_EGRESOS fila 72) aunque TABLA_M.O diga 0; se ignoran los números de cuenta bajo TABLA_CLIENTES.')
+L.append('//  - 12/11 (Gerencia): un cliente con el mismo DNI que otro es un registro duplicado y no se carga (Diana, fila 21);')
+L.append('//    el pago en efectivo para la validación de expertos es costo de la unidad Investigación y Desarrollo.')
 L.append('//  - Medio de pago en mayúsculas; DNI sin saltos de línea.')
 L.append('')
 for name, rows in [('EXCEL_INGRESOS', ing), ('EXCEL_EGRESOS', eg), ('EXCEL_INVERSIONES', inv), ('EXCEL_CLIENTES', cli), ('EXCEL_MANO_OBRA', mo)]:
     L.append(f'export const {name} = [')
     for x in rows: L.append('  ' + obj(x) + ',')
     L.append('] as const;'); L.append('')
+L.append('/** Filas de TABLA_CLIENTES que no se cargan por estar duplicadas (mismo DNI). */')
+L.append('export const EXCEL_CLIENTES_DUPLICADOS = [')
+for x in dup: L.append('  ' + obj(x) + ',')
+L.append('] as const;'); L.append('')
 L.append('/** Totales con los que la página y la base deben cuadrar (calculados de las filas de arriba). */')
 L.append('export const EXCEL_TOTALES = {')
 for k, v in tot.items(): L.append(f'  {k}: {v},')

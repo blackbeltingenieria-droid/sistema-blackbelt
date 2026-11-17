@@ -1,6 +1,6 @@
 // scripts/excel/subir-todo.ts — un solo archivo para pegar UNA vez en Supabase → SQL Editor.
 // Junta, en orden: guardia (3 datos a cambiar arriba) → esquema inicial + 6 migraciones → respaldo y limpieza →
-// carga del Excel → primer usuario (Henry, con contraseña) → verificación (16 filas OK).
+// carga del Excel → primer usuario (Henry, con contraseña) → verificación (18 filas OK).
 // No se conecta a ninguna base: solo escribe texto. Lo corre la usuaria.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -38,11 +38,11 @@ export function buildSubirTodo(root: string, parts: { clean: string; load: strin
     `-- CÓMO USARLO:`,
     `--   1. Cambia SOLO las 3 líneas marcadas con ← (justo debajo).`,
     `--   2. Copia TODO este archivo, pégalo en Supabase → SQL Editor → New query y pulsa Run.`,
-    `--   3. Al final aparece una tabla de 16 filas: todas deben decir OK.`,
+    `--   3. Al final aparece una tabla de 18 filas: todas deben decir OK.`,
     `--   4. Borra la contraseña del editor (no guardes este texto con la contraseña).`,
     `--`,
     `-- Hace, en orden: esquema completo + 6 migraciones (seguras, se pueden repetir) → copia de respaldo de los datos`,
-    `-- actuales (tablas respaldo_20261016_*) y limpieza → carga del Excel → cuenta de Henry → verificación.`,
+    `-- actuales (tablas respaldo_20261112_*) y limpieza → carga del Excel → cuenta de Henry → verificación.`,
     `-- Si algo falla, se detiene ahí y muestra el motivo en rojo.`,
     `-- ==============================================================================`,
     ``,
@@ -62,7 +62,7 @@ export function buildSubirTodo(root: string, parts: { clean: string; load: strin
     block('PASO 1 · RESPALDO Y LIMPIEZA', clean),
     block('PASO 2 · CARGA DEL EXCEL', parts.load),
     block('PASO 3 · CUENTA DE HENRY (Administrador)', first),
-    block('PASO 4 · VERIFICACIÓN (16 filas OK)', parts.verify),
+    block('PASO 4 · VERIFICACIÓN (18 filas OK)', parts.verify),
   ].join('\n');
 }
 
@@ -81,13 +81,15 @@ export function buildActualizarExcel(parts: { clean: string; load: string; verif
     `--`,
     `-- Hace: copia de respaldo de todo (tablas respaldo_*), reemplaza movimientos, pagos de clientes, inversiones`,
     `-- y mano de obra por los del Excel, y actualiza clientes y proyectos. CONSERVA horas, tareas, metas,`,
-    `-- usuarios, contraseñas y especialistas. Si algo falla, se detiene y muestra el motivo.`,
+    `-- usuarios, contraseñas y especialistas. Si algo falla, se detiene, no cambia nada y muestra el motivo.`,
     `-- ==============================================================================`,
     ``,
     `SELECT set_config('bb.confirmo', 'NO', false);  -- ← CAMBIA 'NO' POR 'SI'`,
     ``,
+    `-- Pasos 1 y 2 van en UNA sola transacción: si algo se detiene, la base queda exactamente como estaba (ni respaldo ni borrado).`,
+    `BEGIN;`,
     block('PASO 1 · RESPALDO Y LIMPIEZA (solo movimientos, pagos, inversiones y mano de obra)', clean),
-    block('PASO 2 · CARGA DEL EXCEL', parts.load),
+    block('PASO 2 · CARGA DEL EXCEL', swap(parts.load, '\nBEGIN;\n', '\n-- (la transacción empezó antes del paso 1)\n', 'excel-02')),
     block('PASO 3 · VERIFICACIÓN', parts.verify),
   ].join('\n');
 }

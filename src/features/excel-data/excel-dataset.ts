@@ -7,7 +7,7 @@
 
 import { EXCEL_CLIENTES, EXCEL_EGRESOS, EXCEL_INGRESOS, EXCEL_INVERSIONES, EXCEL_MANO_OBRA } from './excel-raw';
 
-export type XlsRecordType = 'INGRESO_RECONOCIDO' | 'COSTO_RECONOCIDO' | 'COBRO' | 'PAGO' | 'APORTE_SOCIO';
+export type XlsRecordType = 'INGRESO_RECONOCIDO' | 'COSTO_RECONOCIDO' | 'COBRO' | 'PAGO' | 'APORTE_SOCIO' | 'PRESTAMO_RECIBIDO';
 export type XlsClass = 'DIRECTO' | 'ATRIBUIBLE' | 'COMPARTIDO' | 'NO_APLICA';
 
 export interface XlsClient { id: number; name: string; doc: string | null; phone: string | null; institution: string | null; row: number }
@@ -28,15 +28,17 @@ export interface XlsLaborContract {
   start: string; end: string; agreed: number; excelPaid: number; excelPending: number; row: number;
 }
 export interface XlsInvestment {
-  id: number; code: string; kind: 'patrimonio'; name: string; doc: string; amount: number; date: string; method: string; description: string;
+  id: number; code: string; kind: 'patrimonio' | 'deuda'; name: string; doc: string; amount: number; date: string; method: string; description: string;
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const norm = (s: string) => s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 
 // ─── Clientes y proyectos (TABLA_CLIENTES) ───────────────────────────────────
-export const XLS_CLIENTS: XlsClient[] = EXCEL_CLIENTES.map((c, i) => ({
-  id: i + 1, name: c.name, doc: c.doc, phone: c.phone, institution: c.institution, row: c.row,
+/** id = fila de TABLA_CLIENTES − 9 (fila 10 → 1). Así un cliente conserva su id aunque se quite otro (Diana duplicada, fila 21 → id 12 libre). */
+const clientIdOfRow = (row: number) => row - 9;
+export const XLS_CLIENTS: XlsClient[] = EXCEL_CLIENTES.map((c) => ({
+  id: clientIdOfRow(c.row), name: c.name, doc: c.doc, phone: c.phone, institution: c.institution, row: c.row,
 }));
 
 /** Cliente por nombre o DNI (TABLA_INGRESOS escribe a veces el nombre distinto: "CASTRO ESTFHANY DIAZ"). */
@@ -49,16 +51,17 @@ function clientIdFor(name: string, doc: string | null): number {
   return byName.id;
 }
 
-const TODAY = '2026-11-02';
+const TODAY = '2026-11-12';
 /** Fecha de inicio: la del Excel; si no tiene (clientes nuevos), la de su primer pago; si no pagó aún, sin fecha. */
 const startOf = (c: (typeof EXCEL_CLIENTES)[number]): string | null =>
   c.start ?? EXCEL_INGRESOS.filter((r) => r.doc && r.doc === c.doc).map((r) => r.date).sort()[0] ?? null;
-const byStart = [...EXCEL_CLIENTES].map((c, i) => ({ c, clientId: i + 1, start: startOf(c) }))
-  .sort((a, b) => (a.start ?? '9999').localeCompare(b.start ?? '9999') || a.clientId - b.clientId);
+/** Un proyecto por cliente, con el MISMO id que su cliente (PRY-2026-001 = fila 10 … PRY-2026-014 = fila 23). Los ids no
+ *  cambian entre cargas: las tareas, sprints y horas de la web apuntan a ellos (cargas del 02/11 y 12/11 iguales). */
+const byStart = EXCEL_CLIENTES.map((c) => ({ c, clientId: clientIdOfRow(c.row), start: startOf(c) }));
 
-export const XLS_PROJECTS: XlsProject[] = byStart.map(({ c, clientId, start }, i) => ({
-  id: i + 1,
-  code: `PRY-2026-${String(i + 1).padStart(3, '0')}`,
+export const XLS_PROJECTS: XlsProject[] = byStart.map(({ c, clientId, start }) => ({
+  id: clientId,
+  code: `PRY-2026-${String(clientId).padStart(3, '0')}`,
   clientId,
   unitCode: 'UN03',
   areaCode: 'U03-MET',
@@ -131,11 +134,13 @@ function specialistIn(spec: string): string | null {
   if (s.includes('ALANIS')) return 'ALANIS BERAÚN PARDAVÉ';
   if (s.includes('(HENRY)')) return 'HENRY TORRES RIVERA';
   if (s.includes('ASESORAMIENTO DE INVESTIGACION')) return 'MANUEL ENRIQUE PANDURO RENGIFO';
+  if (s.includes('JEFERSON')) return 'JEFERSON RODRIGUEZ MALLQUI';
+  if (s.includes('JOHAN')) return 'JOHANN IMANOL HERRERA RAMOS';
   return null;
 }
 
-/** Egresos sin nombre en el texto, identificados por la fórmula de TABLA_M.O (Henry: I27 + I43 + I57). */
-const SPECIALIST_BY_ROW: Record<number, string> = { 57: 'HENRY TORRES RIVERA' };
+/** Egresos sin nombre en el texto, identificados por TABLA_M.O (Henry pagado 630.70 = I27 + I43 + I56 + I77). */
+const SPECIALIST_BY_ROW: Record<number, string> = { 56: 'HENRY TORRES RIVERA', 77: 'HENRY TORRES RIVERA' };
 
 /** Proyecto al que corresponde un pago a especialista (según TABLA_M.O: a quién asesora). */
 function projectForExpense(spec: string): number | null {
@@ -144,6 +149,8 @@ function projectForExpense(spec: string): number | null {
   const tania = projectOfClient(clientIdFor('TANIA LUCIA AROS RENGIFO', '41705907')).id;
   if (s.includes('WILMER') || s.includes('TEDDY')) return wilmer;   // Teddy y Henry asesoran a Wilmer (M.O filas 14–15)
   if (s.includes('JHIMMY')) return tania;                           // Jhimmy desarrolla la tesis de Tania (M.O fila 12)
+  // Validación de expertos: servicio vendido a Anthenol (TABLA_INGRESOS fila 18); su costo es de ese proyecto (Gerencia 12/11).
+  if (s.includes('VALIDACION DE EXPERTOS')) return projectOfClient(clientIdFor('ANTHENOL BENITO FARROMEQUE MUTTO', '44850179')).id;
   return null;
 }
 
@@ -158,7 +165,10 @@ function categoryFor(group: string, product: string, spec: string): string {
     if (p.startsWith('MICROFONO') || s.includes('MICROFONO')) return 'MAQ';   // equipo (micrófono Hollyland)
     return 'MO';
   }
-  if (g.startsWith('MANTENIMIENTO DEL BBVA') || p === 'BBVA') return 'BAN';   // mantenimiento que cobra el banco
+  if (g === 'ADMINISTRACION' || g === 'PRACTICANTE' || p === 'RPH') return 'MO';   // recibos por honorarios (Jeferson, practicante)
+  if (g === 'PODERES Y ESCRITURAS') return 'ADM';                                  // registro de Blackbelt en el banco
+  if (g === 'DINERO EFECTIVO') return 'TERC';                                      // efectivo para pagar la validación de expertos
+  if (g.startsWith('MANTENIMIENTO DEL BBVA') || g === 'COMISIONES' || p === 'BBVA') return 'BAN';   // mantenimiento que cobra el banco
   if (g === 'TRANSPORTES Y TRAMITES') return p === 'TRANSPORTE' || s.includes('TRANSPORTE') ? 'MOV' : 'ADM';
   if (g === 'HERRAMIENTA') return 'MAT';
   return 'OTR'; // REUNIONES EJECUTIVAS
@@ -211,12 +221,13 @@ for (const [i, r] of EXCEL_EGRESOS.entries()) {
   const contractProject = linked ? XLS_LABOR_CONTRACTS.find((c) => c.code === linked)?.projectId ?? null : null;
   const projectId = isCorp ? null : projectForExpense(r.spec) ?? contractProject;
   const specialist = category === 'MO' ? SPECIALIST_BY_ROW[r.row] ?? specialistIn(r.spec) : null;
-  const detail = category === 'MO' ? r.spec : `${r.product.charAt(0)}${r.product.slice(1).toLowerCase()}`;
+  const experts = norm(r.group) === 'DINERO EFECTIVO' && norm(r.spec).includes('VALIDACION DE EXPERTOS');
+  const detail = category === 'MO' ? r.spec : experts ? 'Validación de expertos (pago en efectivo)' : `${r.product.charAt(0)}${r.product.slice(1).toLowerCase()}`;
   events.push({
     date: r.date, order: 200 + i,
     build: (code, nextId) => {
       const mainId = nextId(); const mainCode = code(r.date);
-      const base = { date: r.date, amount: r.amount, unitCode: isCorp ? 'CORP' : 'UN03', projectId, counterparty: specialist ?? r.product, detail, method: r.method, responsible: r.payer };
+      const base = { date: r.date, amount: r.amount, unitCode: isCorp ? 'CORP' : 'UN03', projectId, counterparty: specialist ?? (experts ? 'EXPERTOS (VALIDACIÓN)' : r.product), detail, method: r.method, responsible: r.payer };
       const payId = nextId(); const payCode = code(r.date);
       return [
         { ...base, id: mainId, code: mainCode, type: 'COSTO_RECONOCIDO', areaCode: AREA[r.area] ?? 'ADM', categoryCode: category,
@@ -228,9 +239,14 @@ for (const [i, r] of EXCEL_EGRESOS.entries()) {
   });
 }
 
+/** Préstamo = la ESPECIFICACIÓN dice «préstamo», o es el S/ 500 del 18/09/2026 de la fila 9 (Gerencia 12/11/2026: se le
+ *  devuelve al socio; sin interés ni plazo). Se reconoce por su contenido, no solo por la fila, por si el Excel se reordena. */
+const isLoan = (r: (typeof EXCEL_INVERSIONES)[number]) =>
+  norm(r.spec ?? '').includes('PRESTAMO') || (r.row === 9 && r.amount === 500 && r.date === '2026-09-18');
 export const XLS_INVESTMENTS: XlsInvestment[] = EXCEL_INVERSIONES.map((r, i) => ({
-  id: i + 1, code: `INV-2026-${String(i + 1).padStart(3, '0')}`, kind: 'patrimonio',
-  name: r.name, doc: r.doc, amount: r.amount, date: r.date, method: r.method, description: r.spec,
+  id: i + 1, code: `INV-2026-${String(i + 1).padStart(3, '0')}`, kind: isLoan(r) ? 'deuda' : 'patrimonio',
+  name: r.name, doc: r.doc, amount: r.amount, date: r.date, method: r.method,
+  description: isLoan(r) ? 'Préstamo del socio para la empresa (se le devuelve; sin interés)' : r.spec,
 }));
 
 for (const [i, inv] of XLS_INVESTMENTS.entries()) {
@@ -238,8 +254,10 @@ for (const [i, inv] of XLS_INVESTMENTS.entries()) {
     date: inv.date, order: i,
     build: (code, nextId) => {
       const id = nextId();
+      const loan = inv.kind === 'deuda';
       return [{
-        id, code: code(inv.date), date: inv.date, type: 'APORTE_SOCIO', amount: inv.amount, unitCode: 'CORP', areaCode: 'FIN', categoryCode: 'SOC',
+        id, code: code(inv.date), date: inv.date, type: loan ? 'PRESTAMO_RECIBIDO' : 'APORTE_SOCIO', amount: inv.amount, unitCode: 'CORP', areaCode: 'FIN',
+        categoryCode: loan ? 'OTR' : 'SOC',   // igual que la app al registrar un préstamo
         cls: 'NO_APLICA', projectId: null, counterparty: inv.name, detail: inv.description, method: inv.method, responsible: null,
         notes: `Inversión ${inv.code} · Excel TABLA_INVERSIONES fila ${EXCEL_INVERSIONES[i].row}`,
       }];
@@ -272,8 +290,10 @@ export function datasetTotals() {
     cobros: sum('COBRO'),
     egresos: sum('COSTO_RECONOCIDO'),
     pagos: sum('PAGO'),
-    inversion: sum('APORTE_SOCIO'),
-    fondoEnCaja: r2(sum('COBRO') + sum('APORTE_SOCIO') - sum('PAGO')),
+    aportes: sum('APORTE_SOCIO'),
+    prestamos: sum('PRESTAMO_RECIBIDO'),
+    inversion: r2(sum('APORTE_SOCIO') + sum('PRESTAMO_RECIBIDO')),   // TABLA_INVERSIONES: aportes + préstamo
+    fondoEnCaja: r2(sum('COBRO') + sum('APORTE_SOCIO') + sum('PRESTAMO_RECIBIDO') - sum('PAGO')),
     contratado: r2(XLS_PROJECTS.reduce((a, p) => a + p.contracted, 0)),
     pagadoClientes: r2(XLS_PAYMENTS.reduce((a, p) => a + p.amount, 0)),
   };
