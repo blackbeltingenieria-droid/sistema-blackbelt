@@ -25,7 +25,7 @@ describe('servicios y marketing', () => {
     const r = buildRecurringReport(movs, catCode, ['herramientas']);
     expect(r.total).toBe(excelSum(['HERRAMIENTAS DIGITALES']));
     expect(r.total).toBe(EXCEL_TOTALES.herramientas);           // hoja HERRAMIENTAS (corregida)
-    expect(r.months).toEqual(['2026-08', '2026-09', '2026-10']);
+    expect(r.months).toEqual(['2026-08', '2026-09', '2026-10', '2026-11']);
     expect(r.services.find((s) => s.key === 'CANVA')?.recurring).toBe(true);
   });
 

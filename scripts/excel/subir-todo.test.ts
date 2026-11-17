@@ -20,4 +20,14 @@ describe('SUBIR-TODO.sql', () => {
     expect(s).toContain("current_setting('bb.clave_henry')");
     expect(s).not.toContain("v_password TEXT := 'CAMBIAR'");
   });
+
+  it('ACTUALIZAR-EXCEL: respaldo, limpieza y carga en una sola transacción (si se detiene, no cambia nada)', async () => {
+    const { buildActualizarExcel } = await import('./subir-todo');
+    const { buildBackupAndCleanSql, buildLoadSql, buildVerifySql } = await import('./sql');
+    const s = buildActualizarExcel({ clean: buildBackupAndCleanSql('update'), load: buildLoadSql('update'), verify: buildVerifySql('update') });
+    expect(s.match(/^BEGIN;$/gm)).toHaveLength(1);
+    expect(s.match(/^COMMIT;$/gm)).toHaveLength(1);
+    expect(s.indexOf('BEGIN;')).toBeLessThan(s.indexOf('CREATE TABLE %I AS SELECT'));
+    expect(s.indexOf('DELETE FROM %I')).toBeLessThan(s.indexOf('COMMIT;'));
+  });
 });

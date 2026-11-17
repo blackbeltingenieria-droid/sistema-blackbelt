@@ -49,4 +49,16 @@ describe('resumen del negocio', () => {
     expect(summary([]).verdict).toBe('sin-datos');
     expect(summary([]).reasons).toEqual([]);
   });
+
+  it('«Debes» incluye el préstamo por devolver, pero no cambia la ganancia (devolverlo no es gasto)', () => {
+    const loan = mov({ unit: 'CORP', record_type: 'PRESTAMO_RECIBIDO', amount: 500, expense_class: 'NO_APLICA', cost_category_id: CAT_ID.OTR, movement_date: '2026-09-18' });
+    const back = mov({ unit: 'CORP', record_type: 'PAGO_PRESTAMO', amount: 200, expense_class: 'NO_APLICA', cost_category_id: CAT_ID.OTR, movement_date: D });
+    const base = summary();
+    const withLoan = summary([...data, loan]);
+    expect(withLoan.loans).toBe(500);
+    expect(withLoan.payable).toBe(base.payable + 500);
+    expect(withLoan.result).toBe(base.result);
+    expect(summary([...data, loan, back]).loans).toBe(300);
+    expect(base.loans).toBe(0);
+  });
 });

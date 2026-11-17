@@ -75,6 +75,7 @@ export function BusinessSummaryView({ mes, label, isMonth = true, summary: s, pe
           <p className={`bb-mono text-xl font-semibold ${s.cash < 0 ? 'text-rust' : 'text-ink'}`} data-testid="summary-cash">{formatPen(s.cash)}</p>
           <p className="bb-body text-[11px] text-ink-soft mt-1" data-testid="summary-owes">Te deben {formatPen(s.receivable)} · Debes {formatPen(s.payable)}</p>
           {s.projected && s.projected.laborPending > 0 && <p className="bb-body text-[10px] text-ink-soft">Debes incluye {formatPen(s.projected.laborPending)} al equipo (Mano de obra).</p>}
+          {s.loans > 0 && <p className="bb-body text-[10px] text-ink-soft" data-testid="summary-loans">Debes incluye {formatPen(s.loans)} de préstamos por devolver (Inversiones).</p>}
         </Card>
       </div>
 

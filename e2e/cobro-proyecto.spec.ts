@@ -10,13 +10,13 @@ test.describe('Cobrar lo que falta de un proyecto', () => {
     await page.getByTestId('register-payment').click();
     await expect(page).toHaveURL(/\/movements/);
     const dlg = page.getByRole('dialog');
-    await expect(dlg.getByLabel('Monto (S/)')).toHaveValue('700'); // Excel: Wilmer debe S/ 700
-    await expect(dlg.getByTestId('project-balance')).toContainText('S/ 700.00');
+    await expect(dlg.getByLabel('Monto (S/)')).toHaveValue('350'); // Excel: Wilmer debe S/ 350
+    await expect(dlg.getByTestId('project-balance')).toContainText('S/ 350.00');
     await expect(dlg.getByTestId('project-payment-note')).toContainText('queda pagado por completo');
     await expect(dlg.getByLabel('¿Qué fue?')).toHaveValue(/^Pago de /);
     await dlg.getByRole('button', { name: 'Guardar' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect(rowOf(page, 'S/ 700.00')).toContainText('Cobrado');
+    await expect(rowOf(page, 'S/ 350.00')).toContainText('Cobrado');
 
     await go(page, 'Clientes y Proyectos');
     await vis(page, 'PRY-2026-001').click();

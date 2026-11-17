@@ -10,6 +10,8 @@ const code = (id: number) => SEED_BUSINESS_UNITS.find((u) => u.id === id)?.code 
 const movs = EXCEL_DB_MOVEMENTS.map((m) => enrichMovement(m, code(m.business_unit_id)));
 const dataMonths = [...new Set(movs.map((m) => m.mes))];
 
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
 describe('periodos de Resultados y caja', () => {
   it('meses de cada periodo', () => {
     expect(periodMonths({ kind: 'month', month: '2026-10' }, dataMonths, '2026-10')).toEqual(['2026-10']);
@@ -27,7 +29,7 @@ describe('periodos de Resultados y caja', () => {
     expect(periodLabel({ kind: 'range', from: '2026-08', to: '2026-10' }, ['2026-08', '2026-09', '2026-10'])).toBe('agosto 2026 – octubre 2026');
   });
 
-  it('TODO desde el inicio cuadra con el Excel: vendiste 5,340, gastaste 6,282.10, caja 557.90', () => {
+  it('TODO desde el inicio cuadra con el Excel: vendiste 6,280, gastaste 8,130.52, caja 149.48 (con el préstamo de 500)', () => {
     const E = EXCEL_TOTALES;
     const all = periodMonths({ kind: 'all' }, dataMonths, '2026-11');
     const r = computeResultsForMonths(movs, all, () => ({}));
@@ -40,7 +42,8 @@ describe('periodos de Resultados y caja', () => {
     expect(c.netFlow).toBe(E.fondoEnCaja);
     expect(c.periodOpening).toBe(0);
     expect(c.month.cobros.amount).toBe(E.ingresos);
-    expect(c.month.aportes.amount).toBe(E.inversion);
+    expect(r2(c.month.aportes.amount + c.month.prestamos.amount)).toBe(E.inversion);   // 1,500 aportes + 500 préstamo
+    expect(c.month.prestamos.amount).toBe(500);
     expect(c.month.pagos.amount).toBe(E.egresos);
   });
 
