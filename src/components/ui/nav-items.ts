@@ -20,6 +20,8 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Presupuesto',          shortLabel: 'Presup.',   to: '/budgets',           icon: '🎯' },
   { label: 'Inversiones',          shortLabel: 'Inversiones', to: '/investments',       icon: '💼' },
   { label: 'Resultados y caja',    shortLabel: 'Resultados',  to: '/results-cash',      icon: '🧮' },
+  { label: 'Consolidado',          shortLabel: 'Consolidado', to: '/consolidado',       icon: '🏢' },
+  { label: 'BlackBelt Institute',  shortLabel: 'Institute',   to: '/blackbelt-institute', icon: '🎓' },
   { label: 'Kanban',               shortLabel: 'Kanban',      to: '/kanban',            icon: '🗂️', primary: true },
   { label: 'Horas-hombre',         shortLabel: 'Horas',       to: '/work-hours',        icon: '⏱️', primary: true },
   { label: 'Equipo',               shortLabel: 'Equipo',      to: '/users',             icon: '👥' },

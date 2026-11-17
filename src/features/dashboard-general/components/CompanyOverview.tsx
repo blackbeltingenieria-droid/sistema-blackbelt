@@ -1,11 +1,14 @@
 // features/dashboard-general/components/CompanyOverview.tsx
-// "La empresa desde el inicio": todo el tiempo en una pantalla, con gráficos simples (barras en CSS,
-// sin librerías). Mismas cifras que Resultados y caja → periodo «Todo».
+// "La empresa desde el inicio": todo el tiempo en una pantalla, con estilo de tablero (como el dashboard de
+// la sede Pucallpa). Mismas cifras que Resultados y caja → periodo «Todo»: aquí solo cambia la presentación.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Card } from '../../../components/ui/Card';
+import {
+  Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from 'recharts';
 import { ErrorBanner } from '../../../components/ui/ErrorBanner';
-import { formatPen, monthLabel, monthShort } from '../../../lib/format';
+import { TOKENS } from '../../../lib/design-tokens';
+import { formatPen, formatPenShort, monthLabel, monthShort } from '../../../lib/format';
 import { getCostCategories } from '../../catalogs/services/catalog-service';
 import type { CostCategory } from '../../catalogs/types';
 import { getProjectRows } from '../../clients-projects/services/project-service';
@@ -13,10 +16,15 @@ import type { ProjectRow } from '../../clients-projects/types';
 import { CATEGORY_SHORT } from '../../movements/domain/quick-entry';
 import { expensesByCategory } from '../../results-cash/domain/presentation';
 import { buildBusinessSummary } from '../../results-cash/domain/summary';
+import { MoneyTooltip } from '../../results-cash/components/charts/chart-parts';
+import { AXIS_TICK, AXIS_TICK_X, GRID_STROKE } from '../../results-cash/components/charts/chart-utils';
 import { getPeriodReport, type MonthReport } from '../../results-cash/services/results-service';
 import { salesByClient } from '../domain/company-overview';
+import { PanelGrafico, TarjetaCifra } from './Tablero';
 
 interface Data { report: MonthReport; categories: CostCategory[]; projects: ProjectRow[] }
+
+const SERIE = [TOKENS.gold, TOKENS.positive, TOKENS.rust, TOKENS.ink, TOKENS.inkSoft];
 
 function useOverview() {
   const [data, setData] = useState<Data | null>(null);
@@ -46,15 +54,15 @@ function HBars({ items, color, testId, onTrace, empty }: {
   if (items.length === 0) return <p className="bb-body text-sm text-ink-soft">{empty}</p>;
   return (
     <ul className="space-y-2.5" data-testid={testId}>
-      {items.map((i) => (
+      {items.map((i, n) => (
         <li key={i.key}>
           <button type="button" className="w-full text-left group" onClick={() => onTrace(i.name, i.ids)}>
-            <div className="flex justify-between gap-2 bb-body text-sm">
+            <div className="flex justify-between gap-2 bb-body text-xs">
               <span className="text-ink group-hover:underline truncate">{i.name}</span>
               <span className="bb-mono text-ink whitespace-nowrap">{formatPen(i.amount)}</span>
             </div>
-            <div className="h-2 bg-canvas rounded-full mt-1 overflow-hidden">
-              <div className={`h-full rounded-full ${color}`} style={{ width: `${(i.amount / max) * 100}%` }} />
+            <div className="h-2.5 bg-canvas rounded-sm mt-1 overflow-hidden">
+              <div className="h-full rounded-sm" style={{ width: `${(i.amount / max) * 100}%`, background: color === 'serie' ? SERIE[n % SERIE.length] : color }} />
             </div>
           </button>
         </li>
@@ -90,98 +98,106 @@ export function CompanyOverview({ onTrace }: { onTrace: (title: string, ids: num
   const s = view.summary;
   const trace = (title: string, ids: number[]) => onTrace(title, ids, report);
   const first = report.dataMonths[0];
-  const months = report.evolution;
-  const maxMonth = Math.max(1, ...months.map((m) => Math.max(m.income, m.costs)));
-  const cashPoints = report.cashByMonth;
-  const maxCash = Math.max(1, ...cashPoints.map((c) => Math.abs(c.balance)));
+  const months = report.evolution.map((m) => ({ ...m, label: monthShort(m.mes) }));
+  const cashPoints = report.cashByMonth.map((c) => ({ ...c, label: monthShort(c.mes) }));
   const winning = s.sinceStart.result >= 0;
-
-  const kpi = (label: string, value: number, color: string, testId: string, note?: string) => (
-    <Card>
-      <p className="bb-label-xs text-ink-soft">{label}</p>
-      <p className={`bb-mono text-base sm:text-xl font-semibold break-words ${color}`} data-testid={testId}>{formatPen(value)}</p>
-      {note && <p className="bb-body text-[11px] text-ink-soft mt-0.5">{note}</p>}
-    </Card>
-  );
+  const green = 'text-belt-en_revision';
 
   return (
-    <div className="space-y-4" data-testid="company-overview">
-      <Card>
-        <p className="bb-body text-sm text-ink-soft">{first ? `Desde ${monthLabel(first)} hasta hoy` : 'Desde el inicio'}</p>
-        <p className={`bb-display font-semibold text-xl sm:text-2xl ${winning ? 'text-belt-en_revision' : 'text-rust'}`} data-testid="overview-verdict">
+    <div className="space-y-3" data-testid="company-overview">
+      <p className="bb-body text-sm text-ink bg-paper border border-line rounded-card px-3 py-2">
+        <span className="text-ink-soft">{first ? `Desde ${monthLabel(first)} hasta hoy` : 'Desde el inicio'} · </span>
+        <strong className={`bb-display ${winning ? green : 'text-rust'}`} data-testid="overview-verdict">
           {winning ? `La empresa ha ganado ${formatPen(s.sinceStart.result)}` : `La empresa ha perdido ${formatPen(Math.abs(s.sinceStart.result))}`}
-        </p>
-        <p className="bb-body text-sm text-ink mt-2" data-testid="overview-phrase">
-          Vendió {formatPen(s.sinceStart.income)} y gastó {formatPen(s.sinceStart.spent)}. Hoy hay {formatPen(s.cash)} en caja.
+        </strong>
+        <span className="block sm:inline" data-testid="overview-phrase">
+          {' '}Vendió {formatPen(s.sinceStart.income)} y gastó {formatPen(s.sinceStart.spent)}. Hoy hay {formatPen(s.cash)} en caja.
           {s.projected && (s.receivable > 0 || s.payable > 0) && <> Si cobra lo que le deben y paga lo que debe, quedaría con {formatPen(s.projected.result)} de ganancia.</>}
-        </p>
-      </Card>
+        </span>
+      </p>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="overview-kpis">
-        {kpi('Vendió', s.sinceStart.income, 'text-belt-en_revision', 'ov-income')}
-        {kpi('Gastó', s.sinceStart.spent, 'text-rust', 'ov-spent')}
-        {kpi(winning ? 'Ganó' : 'Perdió', Math.abs(s.sinceStart.result), winning ? 'text-belt-en_revision' : 'text-rust', 'ov-result')}
-        {kpi('Dinero en caja', s.cash, s.cash < 0 ? 'text-rust' : 'text-ink', 'ov-cash')}
-        {kpi('Le deben', s.receivable, 'text-ink', 'ov-receivable', 'Clientes')}
-        {kpi('Debe', s.payable, s.payable > 0 ? 'text-rust' : 'text-ink', 'ov-payable', 'Equipo y gastos sin pagar')}
+      <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-3" data-testid="overview-kpis">
+        <TarjetaCifra etiqueta="Vendió" valor={formatPen(s.sinceStart.income)} color={green} testId="ov-income" />
+        <TarjetaCifra etiqueta="Gastó" valor={formatPen(s.sinceStart.spent)} color="text-rust" testId="ov-spent" />
+        <TarjetaCifra etiqueta={winning ? 'Ganó' : 'Perdió'} valor={formatPen(Math.abs(s.sinceStart.result))} color={winning ? green : 'text-rust'} testId="ov-result"
+          nota={s.sinceStart.income > 0 ? `Margen ${Math.round((s.sinceStart.result / s.sinceStart.income) * 100)} %` : undefined} />
+        <TarjetaCifra etiqueta="Dinero en caja" valor={formatPen(s.cash)} color={s.cash < 0 ? 'text-rust' : 'text-ink'} testId="ov-cash" />
+        <TarjetaCifra etiqueta="Le deben" valor={formatPen(s.receivable)} testId="ov-receivable" nota="Clientes" />
+        <TarjetaCifra etiqueta="Debe" valor={formatPen(s.payable)} color={s.payable > 0 ? 'text-rust' : 'text-ink'} testId="ov-payable"
+          nota={s.loans > 0 ? 'Equipo, gastos y préstamos' : 'Equipo y gastos sin pagar'} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        <Card>
-          <h2 className="bb-display font-semibold text-ink text-base">Mes a mes: lo que entró y lo que salió</h2>
-          <p className="bb-body text-xs text-ink-soft mb-3">
-            <span className="inline-block w-2.5 h-2.5 rounded-sm bg-belt-en_revision align-middle mr-1" />Vendió
-            <span className="inline-block w-2.5 h-2.5 rounded-sm bg-rust align-middle ml-3 mr-1" />Gastó
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <PanelGrafico titulo="Vendió y gastó por mes">
+          <ResponsiveContainer width="100%" height={190}>
+            <BarChart data={months} margin={{ top: 6, right: 6, bottom: 0, left: -10 }}>
+              <CartesianGrid vertical={false} stroke={GRID_STROKE} />
+              <XAxis dataKey="label" tick={AXIS_TICK_X} tickLine={false} axisLine={{ stroke: GRID_STROKE }} />
+              <YAxis tick={AXIS_TICK} tickFormatter={formatPenShort} tickLine={false} axisLine={false} width={44} />
+              <Tooltip cursor={{ fill: TOKENS.canvas }} content={<MoneyTooltip />} />
+              <Bar isAnimationActive={false} dataKey="income" name="Vendió" fill={TOKENS.positive} radius={[3, 3, 0, 0]} maxBarSize={26} />
+              <Bar isAnimationActive={false} dataKey="costs" name="Gastó" fill={TOKENS.rust} radius={[3, 3, 0, 0]} maxBarSize={26} />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="flex gap-1 px-1 mt-1" data-testid="overview-months">
+            {months.map((m) => (
+              <div key={m.mes} className="flex-1 text-center" title={`${monthLabel(m.mes)}: vendió ${formatPen(m.income)}, gastó ${formatPen(m.costs)}`}>
+                <p className={`bb-mono text-[10px] ${m.result >= 0 ? green : 'text-rust'}`}>{m.result >= 0 ? '+' : '−'}{formatPen(Math.abs(m.result))}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-ink-soft text-center mt-1">
+            <span className="inline-block w-2 h-2 rounded-sm bg-belt-en_revision align-middle mr-1" />Vendió
+            <span className="inline-block w-2 h-2 rounded-sm bg-rust align-middle ml-3 mr-1" />Gastó · debajo: lo que ganó (+) o perdió (−)
           </p>
-          <div className="flex items-end gap-3 sm:gap-6 h-44 border-b border-line px-1" data-testid="overview-months">
-            {months.map((m) => (
-              <div key={m.mes} className="flex-1 flex items-end justify-center gap-1 h-full" title={`${monthLabel(m.mes)}: vendió ${formatPen(m.income)}, gastó ${formatPen(m.costs)}`}>
-                <div className="w-1/3 max-w-[28px] bg-belt-en_revision rounded-t" style={{ height: `${(m.income / maxMonth) * 100}%` }} />
-                <div className="w-1/3 max-w-[28px] bg-rust rounded-t" style={{ height: `${(m.costs / maxMonth) * 100}%` }} />
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-3 sm:gap-6 px-1 mt-1">
-            {months.map((m) => (
-              <div key={m.mes} className="flex-1 text-center">
-                <p className="bb-body text-xs text-ink-soft">{monthShort(m.mes)}</p>
-                <p className={`bb-mono text-[11px] ${m.result >= 0 ? 'text-belt-en_revision' : 'text-rust'}`}>{m.result >= 0 ? '+' : '−'}{formatPen(Math.abs(m.result))}</p>
-              </div>
-            ))}
-          </div>
-          <p className="bb-body text-[11px] text-ink-soft mt-2">Debajo de cada mes: lo que ganó (+) o perdió (−).</p>
-        </Card>
+        </PanelGrafico>
 
-        <Card>
-          <h2 className="bb-display font-semibold text-ink text-base">Dinero en caja al cierre de cada mes</h2>
-          <p className="bb-body text-xs text-ink-soft mb-3">Cuánto dinero había al terminar el mes.</p>
-          <div className="flex items-end gap-3 sm:gap-6 h-44 border-b border-line px-1" data-testid="overview-cash">
-            {cashPoints.map((c) => (
-              <div key={c.mes} className="flex-1 flex items-end justify-center h-full" title={`${monthLabel(c.mes)}: ${formatPen(c.balance)}`}>
-                <div className={`w-1/2 max-w-[44px] rounded-t ${c.balance < 0 ? 'bg-rust' : 'bg-gold'}`} style={{ height: `${(Math.abs(c.balance) / maxCash) * 100}%` }} />
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-3 sm:gap-6 px-1 mt-1">
-            {cashPoints.map((c) => (
-              <div key={c.mes} className="flex-1 text-center">
-                <p className="bb-body text-xs text-ink-soft">{monthShort(c.mes)}</p>
-                <p className="bb-mono text-[11px] text-ink">{formatPen(c.balance)}</p>
-              </div>
-            ))}
-          </div>
-        </Card>
+        <PanelGrafico titulo="Ganancia por mes">
+          <ResponsiveContainer width="100%" height={215}>
+            <ComposedChart data={months} margin={{ top: 6, right: 10, bottom: 0, left: -10 }}>
+              <CartesianGrid vertical={false} stroke={GRID_STROKE} />
+              <XAxis dataKey="label" tick={AXIS_TICK_X} tickLine={false} axisLine={{ stroke: GRID_STROKE }} />
+              <YAxis tick={AXIS_TICK} tickFormatter={formatPenShort} tickLine={false} axisLine={false} width={44}
+                domain={[(min: number) => Math.min(0, min), (max: number) => Math.max(0, max)]} />
+              <ReferenceLine y={0} stroke={TOKENS.inkSoft} strokeDasharray="2 2" />
+              <Tooltip cursor={{ fill: TOKENS.canvas }} content={<MoneyTooltip />} />
+              <Bar isAnimationActive={false} dataKey="result" name="Ganó / perdió" radius={[3, 3, 0, 0]} maxBarSize={30}>
+                {months.map((m) => <Cell key={m.mes} fill={m.result >= 0 ? TOKENS.positive : TOKENS.rust} />)}
+              </Bar>
+              <Line isAnimationActive={false} type="linear" dataKey="result" name="Tendencia" stroke={TOKENS.ink} strokeWidth={2}
+                dot={{ r: 3.5, fill: TOKENS.gold, stroke: TOKENS.paper, strokeWidth: 2 }} legendType="none" tooltipType="none" />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </PanelGrafico>
 
-        <Card>
-          <h2 className="bb-display font-semibold text-ink text-base mb-3">¿En qué se gastó?</h2>
-          <HBars items={view.expenses} color="bg-rust" testId="overview-expenses" empty="Aún no hay gastos." onTrace={(n, ids) => trace(`Gastos: ${n}`, ids)} />
-          <p className="bb-body text-[11px] text-ink-soft mt-3">Toca una barra para ver los registros.</p>
-        </Card>
+        <PanelGrafico titulo="Dinero en caja al cierre de cada mes" className="md:col-span-2 xl:col-span-1">
+          <div data-testid="overview-cash">
+            <ResponsiveContainer width="100%" height={215}>
+              <BarChart data={cashPoints} margin={{ top: 6, right: 6, bottom: 0, left: -10 }}>
+                <CartesianGrid vertical={false} stroke={GRID_STROKE} />
+                <XAxis dataKey="label" tick={AXIS_TICK_X} tickLine={false} axisLine={{ stroke: GRID_STROKE }} />
+                <YAxis tick={AXIS_TICK} tickFormatter={formatPenShort} tickLine={false} axisLine={false} width={44}
+                  domain={[(min: number) => Math.min(0, min), (max: number) => Math.max(0, max)]} />
+                <ReferenceLine y={0} stroke={TOKENS.inkSoft} strokeDasharray="2 2" />
+                <Tooltip cursor={{ fill: TOKENS.canvas }} content={<MoneyTooltip />} />
+                <Bar isAnimationActive={false} dataKey="balance" name="Dinero en caja" radius={[3, 3, 0, 0]} maxBarSize={34}>
+                  {cashPoints.map((c) => <Cell key={c.mes} fill={c.balance < 0 ? TOKENS.rust : TOKENS.gold} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </PanelGrafico>
+      </div>
 
-        <Card>
-          <h2 className="bb-display font-semibold text-ink text-base mb-3">¿Quién nos pagó? (ventas por cliente)</h2>
-          <HBars items={view.sales} color="bg-belt-en_revision" testId="overview-sales" empty="Aún no hay ventas." onTrace={(n, ids) => trace(`Ventas: ${n}`, ids)} />
-        </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
+        <PanelGrafico titulo="¿En qué se gastó?">
+          <HBars items={view.expenses} color={TOKENS.rust} testId="overview-expenses" empty="Aún no hay gastos." onTrace={(n, ids) => trace(`Gastos: ${n}`, ids)} />
+          <p className="bb-body text-[10px] text-ink-soft mt-3 text-center">Toca una barra para ver los registros.</p>
+        </PanelGrafico>
+
+        <PanelGrafico titulo="¿Quién nos pagó? (ventas por cliente)">
+          <HBars items={view.sales} color="serie" testId="overview-sales" empty="Aún no hay ventas." onTrace={(n, ids) => trace(`Ventas: ${n}`, ids)} />
+        </PanelGrafico>
       </div>
     </div>
   );
