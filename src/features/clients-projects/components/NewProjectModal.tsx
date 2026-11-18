@@ -12,20 +12,41 @@ import type { ProjectRow } from '../types';
 import type { BusinessUnit, Client, CreateProjectPayload } from '../types';
 import { PROJECT_STATUS } from '../../../types/database';
 
-interface NewProjectModalProps {
-  onClose: () => void;
-  onCreated: () => void;
+/** Valores del formulario que se pueden dar ya rellenados (p. ej. un proyecto referido por BlackBelt Institute). */
+export interface NewProjectInitial {
+  newClientName?: string;
+  newClientDocNumber?: string;
+  newClientType?: string;
+  newClientPhone?: string;
+  newClientEmail?: string;
+  name?: string;
+  service?: string;
+  contractedAmount?: string;
+  notes?: string;
 }
 
-export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
+interface NewProjectModalProps {
+  onClose: () => void;
+  /** Recibe el id del proyecto creado. */
+  onCreated: (projectId: number) => void;
+  /** Datos ya rellenados: abre con «Nuevo cliente» y estos valores (se pueden corregir). */
+  initial?: NewProjectInitial;
+  /** Código de la unidad de negocio sugerida (p. ej. 'UN03'). */
+  initialUnitCode?: string;
+  title?: string;
+  /** Texto de ayuda arriba del formulario. */
+  hint?: string;
+}
+
+export function NewProjectModal({ onClose, onCreated, initial, initialUnitCode, title, hint }: NewProjectModalProps) {
   const { user } = useAuth();
   const [projects, setProjects]       = useState<ProjectRow[]>([]);
-  // Campos que la persona cambió a mano: esos ya no se rellenan solos.
-  const [touched, setTouched]         = useState<Set<string>>(new Set());
+  // Campos que la persona cambió a mano (o que vinieron rellenados): esos ya no se rellenan solos.
+  const [touched, setTouched]         = useState<Set<string>>(new Set(Object.keys(initial ?? {})));
   const [autoNote, setAutoNote]       = useState<string | null>(null);
   const [clients, setClients]         = useState<Client[]>([]);
   const [busUnits, setBusUnits]       = useState<BusinessUnit[]>([]);
-  const [isNewClient, setIsNewClient] = useState(false);
+  const [isNewClient, setIsNewClient] = useState(Boolean(initial?.newClientName));
   const [submitting, setSubmitting]   = useState(false);
   const [error, setError]             = useState<string | null>(null);
   const [success, setSuccess]         = useState(false);
@@ -64,6 +85,7 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
     endDate: addMonths(todayIso(), 3),
     status: PROJECT_STATUS.ACTIVO,
     notes: '',
+    ...initial,
   });
 
   useEffect(() => {
@@ -72,10 +94,15 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
         setClients(c);
         setBusUnits(b);
         setProjects(p);
-        setForm((prev) => ({ ...prev, code: prev.code || nextCode(p.map((x) => x.code), 'PRY', new Date().getFullYear()) }));
+        const unitId = initialUnitCode ? b.find((u) => u.code === initialUnitCode)?.id : undefined;
+        setForm((prev) => ({
+          ...prev,
+          code: prev.code || nextCode(p.map((x) => x.code), 'PRY', new Date().getFullYear()),
+          businessUnitId: prev.businessUnitId || (unitId ? String(unitId) : ''),
+        }));
       })
       .catch(() => {/* silent — seed already loaded */});
-  }, []);
+  }, [initialUnitCode]);
 
   /** Cambia un campo y rellena solos los que dependen de él (si no se tocaron a mano). */
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
@@ -139,9 +166,9 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
     };
 
     try {
-      await createProject(payload);
+      const projectId = await createProject(payload);
       setSuccess(true);
-      setTimeout(() => { onCreated(); onClose(); }, 1200);
+      setTimeout(() => { onCreated(projectId); onClose(); }, 1200);
     } catch (err) {
       setError(
         err instanceof Error
@@ -158,7 +185,7 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
 
   return (
     <ModalShell
-      title="Nuevo proyecto"
+      title={title ?? 'Nuevo proyecto'}
       onClose={onClose}
       maxWidth="max-w-lg"
       footer={
@@ -183,6 +210,7 @@ export function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
       }
     >
         <form id="new-project-form" onSubmit={handleSubmit} className="space-y-4">
+          {hint && <p className="bb-body text-xs text-ink-soft bg-gold/10 border border-gold/40 rounded-card px-3 py-2">{hint}</p>}
           {/* Client selector / toggle */}
           <div>
             <div className="flex items-center justify-between mb-1">

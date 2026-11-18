@@ -2,7 +2,7 @@
 // Main page: 2-column layout — listing table (left) + detail panel (right).
 // Manages selected project state; delegates data to hooks, rendering to components.
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { DataTable, type Column } from '../../components/ui/DataTable';
 import { StatusChip } from '../../components/ui/StatusChip';
 import { KpiCard } from '../../components/ui/KpiCard';
@@ -10,6 +10,8 @@ import { Card } from '../../components/ui/Card';
 import { useProjectRows } from './hooks/useProjectRows';
 import { ProjectDetailPanel } from './components/ProjectDetailPanel';
 import { NewProjectModal } from './components/NewProjectModal';
+import { ReferidosPendientes } from './components/ReferidosPendientes';
+import { aprobarReferido, getReferidosPendientes, rechazarReferido, type ProyectoReferido } from './services/referidos-service';
 import { UnitBadge } from '../catalogs/components/UnitBadge';
 import type { ProjectRow } from './types';
 
@@ -95,6 +97,39 @@ export function ClientsProjectsPage() {
   const [selectedId, setSelectedId]       = useState<number | null>(null);
   const [showModal, setShowModal]         = useState(false);
   const [search, setSearch]               = useState('');
+  // Proyectos de investigación captados por BlackBelt Institute, pendientes de verificar.
+  const [referidos, setReferidos]         = useState<ProyectoReferido[]>([]);
+  const [verificando, setVerificando]     = useState<ProyectoReferido | null>(null);
+  const [referidoMsg, setReferidoMsg]     = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
+
+  const cargarReferidos = useCallback(() => {
+    getReferidosPendientes().then(setReferidos).catch((e) => setReferidoMsg({ tipo: 'error', texto: e instanceof Error ? e.message : String(e) }));
+  }, []);
+  useEffect(() => { cargarReferidos(); }, [cargarReferidos]);
+
+  async function rechazar(r: ProyectoReferido) {
+    const motivo = window.prompt(`Motivo para rechazar «${r.proyecto_nombre}» (lo verá BlackBelt Institute):`);
+    if (motivo === null) return;
+    if (motivo.trim().length < 5) { setReferidoMsg({ tipo: 'error', texto: 'Escribe el motivo del rechazo (mínimo 5 caracteres).' }); return; }
+    try {
+      await rechazarReferido(r.id, motivo.trim());
+      setReferidoMsg({ tipo: 'ok', texto: `«${r.proyecto_nombre}» rechazado.` });
+      cargarReferidos();
+    } catch (e) {
+      setReferidoMsg({ tipo: 'error', texto: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  async function referidoCreado(r: ProyectoReferido, projectId: number) {
+    try {
+      await aprobarReferido(r.id, projectId);
+      setReferidoMsg({ tipo: 'ok', texto: `«${r.proyecto_nombre}» verificado: ya es un proyecto.` });
+    } catch (e) {
+      setReferidoMsg({ tipo: 'error', texto: `El proyecto se creó, pero no se pudo marcar el referido como aprobado: ${e instanceof Error ? e.message : String(e)}` });
+    }
+    cargarReferidos();
+    refetch();
+  }
 
   // Filter by search
   const filtered = rows.filter(
@@ -133,6 +168,13 @@ export function ClientsProjectsPage() {
                 Nuevo proyecto
               </button>
             </div>
+
+            {referidoMsg && (
+              <div className={`mb-4 p-3 rounded-card border ${referidoMsg.tipo === 'ok' ? 'bg-paper border-line' : 'bg-rust/10 border-rust/30'}`}>
+                <p className={`bb-body text-sm ${referidoMsg.tipo === 'ok' ? 'text-ink' : 'text-rust'}`}>{referidoMsg.texto}</p>
+              </div>
+            )}
+            <ReferidosPendientes referidos={referidos} onVerificar={setVerificando} onRechazar={rechazar} />
 
             {/* KPI strip */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-5 sm:mb-8">
@@ -205,6 +247,28 @@ export function ClientsProjectsPage() {
           onClose={() => setSelectedId(null)}
         />
       </div>
+
+      {/* Verificar un proyecto referido: el formulario de siempre, ya rellenado */}
+      {verificando && (
+        <NewProjectModal
+          title="Verificar proyecto referido"
+          hint={`Captado por BlackBelt Institute${verificando.referido_por_nombre ? ` (${verificando.referido_por_nombre})` : ''}. Revisa y completa los datos: al crear el proyecto, el referido queda aprobado.`}
+          initial={{
+            newClientName: verificando.cliente_nombre,
+            newClientDocNumber: verificando.cliente_doc ?? '',
+            newClientType: verificando.cliente_tipo,
+            newClientPhone: verificando.cliente_telefono ?? '',
+            newClientEmail: verificando.cliente_correo ?? '',
+            name: verificando.proyecto_nombre,
+            service: verificando.servicio ?? '',
+            contractedAmount: verificando.monto_estimado != null ? String(verificando.monto_estimado) : '',
+            notes: [`Referido por BlackBelt Institute${verificando.referido_por_nombre ? ` (${verificando.referido_por_nombre})` : ''}.`, verificando.descripcion].filter(Boolean).join(' '),
+          }}
+          initialUnitCode="UN03"
+          onClose={() => setVerificando(null)}
+          onCreated={(projectId) => { const r = verificando; setVerificando(null); void referidoCreado(r, projectId); }}
+        />
+      )}
 
       {/* New project modal */}
       {showModal && (
